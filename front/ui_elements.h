@@ -1,10 +1,7 @@
 #pragma once
 #include <SFML/Graphics.hpp>
-#include <iostream>
 #include <vector>
-#include <optional>
 #include "button.h"
-
 
 const float LEFT_WIDTH = 560.f; 
 const float RIGHT_WIDTH = 200.f; 
@@ -13,7 +10,7 @@ const float OFFSET_X = (960.f - TOTAL_GAME_WIDTH) / 2.f; // 100.f
 const float GAME_START_X = OFFSET_X;
 const float SPLIT_Y = 380.f;
 
-// Main Screen
+// Main Screen (Arka plan - texture yok, sadece renk)
 struct GamePanel {
     sf::RectangleShape background;
 
@@ -28,101 +25,65 @@ struct GamePanel {
     }
 };
 
-// DialogBox
+// DialogBox - Texture referans olarak geliyor
 struct DialogBox {
-    sf::Texture texture;
-    std::optional<sf::Sprite> sprite;
+    sf::Sprite sprite;
 
-    DialogBox() {
-        if (!texture.loadFromFile("textures/Textbox[Final].png")) {
-            std::cerr << "Textbox texture yuklenemedi!" << std::endl;
-        }
-        
-        // Loading protection
-        sprite.emplace(texture);
-        sprite->setPosition({GAME_START_X, SPLIT_Y});
-
-        float scaleX = LEFT_WIDTH / static_cast<float>(texture.getSize().x);
-        float scaleY = (540.f - SPLIT_Y) / static_cast<float>(texture.getSize().y);
-        sprite->setScale({scaleX, scaleY});
+    DialogBox(const sf::Texture& tex) : sprite(tex) {
+        sprite.setPosition({GAME_START_X, SPLIT_Y});
+        float scaleX = LEFT_WIDTH / static_cast<float>(tex.getSize().x);
+        float scaleY = (540.f - SPLIT_Y) / static_cast<float>(tex.getSize().y);
+        sprite.setScale({scaleX, scaleY});
     }
 
     void draw(sf::RenderWindow& window) {
-        if (sprite) {
-            window.draw(*sprite);
-        }
+        window.draw(sprite);
     }
 };
 
-// StatBox
+// StatBox - Texture referans olarak geliyor
 struct StatBox {
-    sf::Texture texture;
-    std::optional<sf::Sprite> sprite;
+    sf::Sprite sprite;
 
-    StatBox() {
-        if (!texture.loadFromFile("textures/Statbox[Final].png")) {
-            std::cerr << "Statbox texture yuklenemedi!" << std::endl;
-        }
-        
-        // Loading protection
-        sprite.emplace(texture);
-        sprite->setPosition({GAME_START_X + LEFT_WIDTH, 0.f});
-
-        float scaleX = RIGHT_WIDTH / static_cast<float>(texture.getSize().x);
-        float scaleY = SPLIT_Y / static_cast<float>(texture.getSize().y);
-        sprite->setScale({scaleX, scaleY});
+    StatBox(const sf::Texture& tex) : sprite(tex) {
+        sprite.setPosition({GAME_START_X + LEFT_WIDTH, 0.f});
+        float scaleX = RIGHT_WIDTH / static_cast<float>(tex.getSize().x);
+        float scaleY = SPLIT_Y / static_cast<float>(tex.getSize().y);
+        sprite.setScale({scaleX, scaleY});
     }
 
     void draw(sf::RenderWindow& window) {
-        if (sprite) {
-            window.draw(*sprite);
-        }
+        window.draw(sprite);
     }
 };
 
-// --- BUTON MENÜSÜ KAPSAYICISI ---
+// ButtonMenu - Tüm Texture'lar dışarıdan referans olarak geliyor
 struct ButtonMenu {
     std::vector<Button> buttons;
 
-    ButtonMenu() {
-        // SFML BEYAZ KARE HATASI ÇÖZÜMÜ:
-        // Vektörün kapasitesini baştan 10 olarak ayırıyoruz ki eleman eklendikçe yeniden boyutlanıp
-        // hafızadaki Texture'ların yerini değiştirmesin. Yerleri değişirse Sprite'lar boşluğa bakar.
-        buttons.reserve(10);
+    ButtonMenu(const sf::Texture& btnTex, const sf::Texture& mapTex, const sf::Texture& invTex) {
+        float colWidth    = RIGHT_WIDTH / 2.f;
+        float areaHeight  = 540.f - SPLIT_Y;
+        float yellowH     = areaHeight / 4.f;
+        float actionStartX = GAME_START_X + LEFT_WIDTH;
+        float actionStartY = SPLIT_Y;
 
-        // --- BUTTON LAYOUT (from graphic_test.cpp) ---
-        float colWidth = RIGHT_WIDTH / 2.f;       // 100.f
-        float areaHeight = 540.f - SPLIT_Y;       // 160.f
-        float yellowH = areaHeight / 4.f;         // 40.f
-        float actionStartX = GAME_START_X + LEFT_WIDTH; // 660.f
-        float actionStartY = SPLIT_Y;             // 380.f
-
-        // First 4 Action Buttons
+        // 4 Aksiyon Butonu
         for (int i = 0; i < 4; i++) {
-            buttons.emplace_back(
-                "textures/Button[Final].png",
-                actionStartX, 
-                actionStartY + (i * yellowH),
-                colWidth, 
-                yellowH
-            );
+            buttons.emplace_back(btnTex, actionStartX, actionStartY + (i * yellowH), colWidth, yellowH);
         }
 
-        // MAP and INV Buttons
-        float purpleH = areaHeight / 2.f;         // 80.f
-        buttons.emplace_back("textures/Map[Final].png", actionStartX + colWidth, actionStartY, colWidth, purpleH);
-        buttons.emplace_back("textures/Inventory[Final].png", actionStartX + colWidth, actionStartY + purpleH, colWidth, purpleH);
+        // MAP ve INV Butonları
+        float purpleH = areaHeight / 2.f;
+        buttons.emplace_back(mapTex, actionStartX + colWidth, actionStartY, colWidth, purpleH);
+        buttons.emplace_back(invTex, actionStartX + colWidth, actionStartY + purpleH, colWidth, purpleH);
     }
 
     void update(sf::Vector2f mousePos, bool isMousePressed) {
-        for (auto& btn : buttons) {
-            btn.update(mousePos, isMousePressed);
-        }
+        for (auto& btn : buttons) btn.update(mousePos, isMousePressed);
     }
 
     void draw(sf::RenderWindow& window) {
-        for (auto& btn : buttons) {
-            btn.draw(window);
-        }
+        for (auto& btn : buttons) btn.draw(window);
     }
 };

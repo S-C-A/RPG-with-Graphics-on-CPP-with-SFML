@@ -8,11 +8,18 @@ private:
     sf::RenderWindow window;
     sf::View gameView;
 
-    // Static UI Elements (Tertemiz, karmaşadan uzak)
-    GamePanel gamePanel;
-    DialogBox dialogBox;
-    StatBox statBox;
-    ButtonMenu buttonMenu; // 6 Butonumuzu barındıran kapsayıcı
+    // === MERKEZI DEPO: Tüm Texture'lar burada, bir kez yüklenir ===
+    sf::Texture dialogTex;
+    sf::Texture statTex;
+    sf::Texture buttonTex;
+    sf::Texture mapTex;
+    sf::Texture invTex; 
+
+    // UI Elemanları (Texture'ları referans olarak yukarıdan alır)
+    std::optional<GamePanel>   gamePanel;
+    std::optional<DialogBox>   dialogBox;
+    std::optional<StatBox>     statBox;
+    std::optional<ButtonMenu>  buttonMenu;
 
 public:
     Application() {
@@ -20,50 +27,47 @@ public:
         window.create(sf::VideoMode::getDesktopMode(), "KEYBEARER", sf::State::Fullscreen);
         window.setFramerateLimit(60);
 
-        // Textures set to be stretched from 960x540 base 
+        // 960x540 çözünürlük oranını tam ekrana sündür
         gameView = sf::View(sf::FloatRect({0.f, 0.f}, {960.f, 540.f}));
         window.setView(gameView);
+
+        // 1. Resimleri MERKEZİ DEPODA yükle
+        if (!dialogTex.loadFromFile("textures/Textbox[Final].png"))   return;
+        if (!statTex.loadFromFile("textures/Statbox[Final].png"))     return;
+        if (!buttonTex.loadFromFile("textures/Button[Final].png"))    return;
+        if (!mapTex.loadFromFile("textures/Map[Final].png"))          return;
+        if (!invTex.loadFromFile("textures/Inventory[Final].png"))    return;
+
+        // 2. UI Elemanlarını oluştur, resimleri referans olarak ver
+        gamePanel.emplace();
+        dialogBox.emplace(dialogTex);
+        statBox.emplace(statTex);
+        buttonMenu.emplace(buttonTex, mapTex, invTex);
     }
 
-    // (Game Loop)
     void run() {
         while (window.isOpen()) {
             
-            // (Event Handling)
+            // Event Handling
             while (const std::optional eventOpt = window.pollEvent()) {
                 const auto& event = *eventOpt;
-
-                // X button to close
-                if (event.is<sf::Event::Closed>()) {
-                    window.close();
-                }
-                
-                // ESC button to close
-                if (const auto* keyPress = event.getIf<sf::Event::KeyPressed>()) {
-                    if (keyPress->code == sf::Keyboard::Key::Escape) {
-                        window.close(); 
-                    }
-                }
+                if (event.is<sf::Event::Closed>()) window.close();
+                if (const auto* key = event.getIf<sf::Event::KeyPressed>())
+                    if (key->code == sf::Keyboard::Key::Escape) window.close();
             }
 
-            // Update Mouse State
-            sf::Vector2i pixelPos = sf::Mouse::getPosition(window);
-            sf::Vector2f worldPos = window.mapPixelToCoords(pixelPos, gameView);
+            // Mouse
+            sf::Vector2f worldPos = window.mapPixelToCoords(sf::Mouse::getPosition(window), gameView);
             bool isMousePressed = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
+            buttonMenu->update(worldPos, isMousePressed);
 
-            // Sadece tek bir fonksiyon çağrısı ile tüm butonların fare kontrolünü yapıyoruz
-            buttonMenu.update(worldPos, isMousePressed);
-
-            // (Render) 
-            window.clear(sf::Color::Black); // Clean the screen
-            window.setView(gameView);       // Setting the coordinates for the textures
-
-            // Static UI & Buttons
-            gamePanel.draw(window);
-            dialogBox.draw(window);
-            statBox.draw(window);
-            buttonMenu.draw(window);
-
+            // Render
+            window.clear(sf::Color::Black);
+            window.setView(gameView);
+            gamePanel->draw(window);
+            dialogBox->draw(window);
+            statBox->draw(window);
+            buttonMenu->draw(window);
             window.display();
         }
     }
