@@ -2,6 +2,7 @@
 #include <SFML/Graphics.hpp>
 #include <optional>
 #include "ui_elements.h"
+#include "typewriter.h"
 
 class Application {
 private:
@@ -20,6 +21,10 @@ private:
     std::optional<DialogBox>   dialogBox;
     std::optional<StatBox>     statBox;
     std::optional<ButtonMenu>  buttonMenu;
+
+    // Font - Typewriter için gerekli, merkezi depoda tutuluyor
+    sf::Font font;
+    Typewriter typewriter;
 
 public:
     Application() {
@@ -43,6 +48,10 @@ public:
         dialogBox.emplace(dialogTex);
         statBox.emplace(statTex);
         buttonMenu.emplace(buttonTex, mapTex, invTex);
+
+        // 3. Font yükle ve test mesajı başlat
+        if (!font.openFromFile("font.ttf")) return;
+        typewriter.start("Kapiyi actiniz. Kuzey, dogu ve bati yonlerinde yollar var. Nigga Nigga Nigga Nigga Nigga Nigga", font);
     }
 
     void run() {
@@ -60,6 +69,7 @@ public:
             sf::Vector2f worldPos = window.mapPixelToCoords(sf::Mouse::getPosition(window), gameView);
             bool isMousePressed = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
             buttonMenu->update(worldPos, isMousePressed);
+            typewriter.update();
 
             // Render
             window.clear(sf::Color::Black);
@@ -68,6 +78,8 @@ public:
             dialogBox->draw(window);
             statBox->draw(window);
             buttonMenu->draw(window);
+            // DialogBox konumunu draw'a geçiriyoruz ki yazı kutunun içine oturabilsin
+            typewriter.draw(window, font, dialogBox->sprite.getPosition());
             window.display();
         }
     }
