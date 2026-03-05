@@ -45,16 +45,51 @@ struct DialogBox {
 // StatBox - Texture referans olarak geliyor
 struct StatBox {
     sf::Sprite sprite;
+    std::string statContent; // Güncel stat yazısı
 
     StatBox(const sf::Texture& tex) : sprite(tex) {
         sprite.setPosition({GAME_START_X + LEFT_WIDTH, 0.f});
         float scaleX = RIGHT_WIDTH / static_cast<float>(tex.getSize().x);
         float scaleY = SPLIT_Y / static_cast<float>(tex.getSize().y);
         sprite.setScale({scaleX, scaleY});
+
+        // Başlangıçta placeholder değerlerle doldur
+        statContent  = "   KEYBEARER\n";
+        statContent += "     (Lvl --)\n\n";
+        statContent += "HP:   --/--\n\n";
+        statContent += "ATK:  --\n";
+        statContent += "DEF:  --\n\n";
+        statContent += "GOLD: --\n";
+        statContent += "EXP:  --\n\n";
+        statContent += "Weapon\n[--]\n\n";
+        statContent += "Armor\n[--]";
     }
 
-    void draw(sf::RenderWindow& window) {
+    // Backend gelince bu fonksiyon çağrılacak:
+    // statBox->updateStats("1", "40", "40", "5", "3", "17", "0", "Fists", "None");
+    void updateStats(const std::string& lvl, const std::string& hp, const std::string& maxHp,
+                     const std::string& atk, const std::string& def,
+                     const std::string& gold, const std::string& exp,
+                     const std::string& weapon, const std::string& armor) {
+        statContent  = "   KEYBEARER\n";
+        statContent += "     (Lvl " + lvl + ")\n\n";
+        statContent += "HP:   " + hp + "/" + maxHp + "\n\n";
+        statContent += "ATK:  " + atk + "\n";
+        statContent += "DEF:  " + def + "\n\n";
+        statContent += "GOLD: " + gold + "\n";
+        statContent += "EXP:  " + exp + "\n\n";
+        statContent += "Weapon\n[" + weapon + "]\n\n";
+        statContent += "Armor\n[" + armor + "]";
+    }
+
+    void draw(sf::RenderWindow& window, const sf::Font& font) {
         window.draw(sprite);
+        sf::Text text(font);
+        text.setCharacterSize(16);
+        text.setFillColor(sf::Color(110, 0, 0)); // BORDEAUX
+        text.setString(statContent);
+        text.setPosition({sprite.getPosition().x + 35.f, sprite.getPosition().y + 40.f});
+        window.draw(text);
     }
 };
 

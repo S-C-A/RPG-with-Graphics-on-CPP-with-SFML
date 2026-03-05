@@ -104,7 +104,7 @@ public:
             window.setView(gameView);
             gamePanel->draw(window);
             dialogBox->draw(window);
-            statBox->draw(window);
+            statBox->draw(window, font);
             buttonMenu->draw(window, font);
             // DialogBox konumunu draw'a geçiriyoruz ki yazı kutunun içine oturabilsin
             typewriter.draw(window, font, dialogBox->sprite.getPosition());
