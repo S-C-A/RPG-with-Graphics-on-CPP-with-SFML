@@ -2,6 +2,7 @@
 #include <SFML/Graphics.hpp>
 #include <vector>
 #include "button.h"
+#include "gamestate.h"
 
 const float LEFT_WIDTH = 560.f; 
 const float RIGHT_WIDTH = 200.f; 
@@ -83,7 +84,48 @@ struct ButtonMenu {
         for (auto& btn : buttons) btn.update(mousePos, isMousePressed);
     }
 
-    void draw(sf::RenderWindow& window) {
-        for (auto& btn : buttons) btn.draw(window);
+    void draw(sf::RenderWindow& window, const sf::Font& font) {
+        for (auto& btn : buttons) btn.draw(window, font);
+    }
+
+    // State'e göre buton yazılarını ve renklerini günceller
+    // Tüm texture referansları Application'ın merkezi deposundan geliyor
+    void applyState(GameState state,
+                    const sf::Texture& btnTex,    const sf::Texture& btnGreyTex,
+                    const sf::Texture& mapTex,    const sf::Texture& mapGreyTex,
+                    const sf::Texture& invTex,    const sf::Texture& invGreyTex) {
+
+        if (state == GameState::EXPLORING) {
+            buttons[0].setLabel("NORTH"); buttons[0].setTexture(btnTex);
+            buttons[1].setLabel("WEST");  buttons[1].setTexture(btnTex);
+            buttons[2].setLabel("EAST");  buttons[2].setTexture(btnTex);
+            buttons[3].setLabel("SOUTH"); buttons[3].setTexture(btnTex);
+            buttons[4].setTexture(mapTex);
+            buttons[5].setTexture(invTex);
+        }
+        else if (state == GameState::COMBAT) {
+            buttons[0].setLabel("ATTACK");   buttons[0].setTexture(btnTex);
+            buttons[1].setLabel("FOCUS"); buttons[1].setTexture(btnTex);
+            buttons[2].setLabel("MAGIC"); buttons[2].setTexture(btnTex);
+            buttons[3].setLabel("RUN");   buttons[3].setTexture(btnTex);
+            buttons[4].setTexture(mapGreyTex);
+            buttons[5].setTexture(invTex);
+        }
+        else if (state == GameState::DIALOGUE) {
+            for (int i = 0; i < 4; i++) {
+                buttons[i].setLabel("");
+                buttons[i].setTexture(btnGreyTex);
+            }
+            buttons[4].setTexture(mapGreyTex);
+            buttons[5].setTexture(invGreyTex);
+        }
+        else if (state == GameState::SHOP) {
+            buttons[0].setLabel("BUY");   buttons[0].setTexture(btnTex);
+            buttons[1].setLabel("SELL");  buttons[1].setTexture(btnTex);
+            buttons[2].setLabel("TALK");  buttons[2].setTexture(btnTex);
+            buttons[3].setLabel("EXIT");  buttons[3].setTexture(btnTex);
+            buttons[4].setTexture(mapGreyTex);
+            buttons[5].setTexture(invGreyTex);
+        }
     }
 };
