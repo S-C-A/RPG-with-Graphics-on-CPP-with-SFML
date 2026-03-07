@@ -5,6 +5,7 @@
 #include "typewriter.h"
 #include "gamestate.h"
 #include "inventory.h"
+#include "../game.h"
 
 class Application {
 private:
@@ -37,6 +38,38 @@ private:
     // Envanter paneli
     InventoryPanel inventory;
 
+    // === BACKEND ===
+    Game game;
+
+    // Stat panelini güncel Player değerleriyle doldurur
+    void refreshStats() {
+        Player& p = game.getPlayer();
+        statBox->updateStats(
+            std::to_string(p.getLvl()),
+            std::to_string(p.getHp()),  std::to_string(p.getMaxHp()),
+            std::to_string(p.getAtk()), std::to_string(p.getDef()),
+            std::to_string(p.getGold()),std::to_string(p.getExp()),
+            p.getWeaponName(),          p.getArmorName()
+        );
+    }
+
+    // Butonları state + oda çıkışlarına göre günceller
+    void refreshButtons() {
+        buttonMenu->applyState(currentState, buttonTex, buttonGreyTex,
+                               mapTex, mapGreyTex, invTex, invGreyTex);
+
+        // EXPLORING modunda gidilemez yönleri grileştir
+        if (currentState == GameState::EXPLORING) {
+            Room* room = game.getCurrentRoom();
+            if (room) {
+                if (room->n == -1) { buttonMenu->buttons[0].setTexture(buttonGreyTex); buttonMenu->buttons[0].setLabel(""); }
+                if (room->w == -1) { buttonMenu->buttons[1].setTexture(buttonGreyTex); buttonMenu->buttons[1].setLabel(""); }
+                if (room->e == -1) { buttonMenu->buttons[2].setTexture(buttonGreyTex); buttonMenu->buttons[2].setLabel(""); }
+                if (room->s == -1) { buttonMenu->buttons[3].setTexture(buttonGreyTex); buttonMenu->buttons[3].setLabel(""); }
+            }
+        }
+    }
+
 public:
     Application() {
         // Fullscreen window
@@ -65,10 +98,13 @@ public:
 
         // 3. Font yükle ve test mesajı başlat
         if (!font.openFromFile("font.ttf")) return;
-        typewriter.start("Kapiyi actiniz. Kuzey, dogu ve bati yonlerinde yollar var.", font);
+        typewriter.start(game.lookAtRoom(), font);
 
-        // 4. Başlangıç state'ini uygula
-        buttonMenu->applyState(currentState, buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
+        // 4. Başlangıç butonlarını oda çıkışlarına göre ayarla
+        refreshButtons();
+
+        // 5. Stat panelini gerçek değerlerle doldur
+        refreshStats();
     }
 
     void run() {
@@ -87,7 +123,7 @@ public:
                     if (key->code == sf::Keyboard::Key::I) currentState = GameState::DIALOGUE;
                     if (key->code == sf::Keyboard::Key::O) currentState = GameState::SHOP;
                     // State değişince butonları güncelle
-                    buttonMenu->applyState(currentState, buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
+                    refreshButtons();
                 }
                 // Fare tıklaması: sadece basıldığı ANda, tek sefer tetiklenir
                 if (event.is<sf::Event::MouseButtonPressed>())
@@ -120,6 +156,29 @@ public:
             typewriter.update();
             if (isMouseJustClicked && !buttonMenu->buttons[5].bounds.contains(worldPos))
                 typewriter.skip();
+
+            // Yön butonlarına tıklama (EXPLORING modunda, envanter kapalıyken)
+            if (isMouseJustClicked && currentState == GameState::EXPLORING && !inventory.isOpen) {
+                Room* room = game.getCurrentRoom();
+                std::string moveMsg;
+
+                if (buttonMenu->buttons[0].bounds.contains(worldPos) && room->n != -1)
+                    moveMsg = game.attemptMove(room->n);
+                else if (buttonMenu->buttons[1].bounds.contains(worldPos) && room->w != -1)
+                    moveMsg = game.attemptMove(room->w);
+                else if (buttonMenu->buttons[2].bounds.contains(worldPos) && room->e != -1)
+                    moveMsg = game.attemptMove(room->e);
+                else if (buttonMenu->buttons[3].bounds.contains(worldPos) && room->s != -1)
+                    moveMsg = game.attemptMove(room->s);
+
+                if (!moveMsg.empty()) {
+                    typewriter.start(moveMsg, font);
+                    refreshButtons(); // Yeni odanın çıkışlarına göre güncelle
+                }
+            }
+
+            // Her frame statları güncel tut
+            refreshStats();
 
             // Render
             window.clear(sf::Color::Black);
