@@ -3,6 +3,8 @@
 #include <vector>
 #include "button.h"
 #include "gamestate.h"
+#include "../room.h"
+#include "../player.h"
 
 const float LEFT_WIDTH = 560.f; 
 const float RIGHT_WIDTH = 200.f; 
@@ -91,6 +93,18 @@ struct StatBox {
         text.setPosition({sprite.getPosition().x + 35.f, sprite.getPosition().y + 40.f});
         window.draw(text);
     }
+
+    // Player verilerini okuyup stat panelini günceller.
+    // Application'da her frame çağrılır: statBox->syncWithPlayer(game.getPlayer());
+    void syncWithPlayer(Player& p) {
+        updateStats(
+            std::to_string(p.getLvl()),
+            std::to_string(p.getHp()),  std::to_string(p.getMaxHp()),
+            std::to_string(p.getAtk()), std::to_string(p.getDef()),
+            std::to_string(p.getGold()),std::to_string(p.getExp()),
+            p.getWeaponName(),          p.getArmorName()
+        );
+    }
 };
 
 // ButtonMenu - Tüm Texture'lar dışarıdan referans olarak geliyor
@@ -161,6 +175,24 @@ struct ButtonMenu {
             buttons[3].setLabel("EXIT");  buttons[3].setTexture(btnTex);
             buttons[4].setTexture(mapGreyTex);
             buttons[5].setTexture(invGreyTex);
+        }
+    }
+
+    // State + oda çıkışlarına göre butonları tek çağrıda günceller.
+    // EXPLORING modunda gidilemez yönler otomatik grileştir.
+    // Application'da: buttonMenu->applyStateWithRoom(state, room, textures...);
+    void applyStateWithRoom(GameState state, Room* room,
+                            const sf::Texture& btnTex,    const sf::Texture& btnGreyTex,
+                            const sf::Texture& mapTex,    const sf::Texture& mapGreyTex,
+                            const sf::Texture& invTex,    const sf::Texture& invGreyTex) {
+        applyState(state, btnTex, btnGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
+
+        // EXPLORING modunda gidilemez yönleri grileştir
+        if (state == GameState::EXPLORING && room) {
+            if (room->n == -1) { buttons[0].setTexture(btnGreyTex); buttons[0].setLabel(""); }
+            if (room->w == -1) { buttons[1].setTexture(btnGreyTex); buttons[1].setLabel(""); }
+            if (room->e == -1) { buttons[2].setTexture(btnGreyTex); buttons[2].setLabel(""); }
+            if (room->s == -1) { buttons[3].setTexture(btnGreyTex); buttons[3].setLabel(""); }
         }
     }
 };

@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include "gamestate.h"
+#include "../game.h"
 
 // ============================================================
 //  INVENTORY PANEL - Envanter Arayüzü
@@ -47,8 +48,13 @@ struct InventoryPanel {
     // --- Hover Takibi ---
     int hoveredSlot = -1; // Fare hangi slotun üzerinde? (-1 = hiçbiri)
 
+    // --- Mesaj Koruma Timer'ı ---
+    // Eşya kullanıldığında/atıldığında restart edilir.
+    // Timer < 2sn ise hover açıklaması gösterilmez (aksiyon mesajı korunur).
+    sf::Clock messageTimer;
+
     // --- Sabit Düzen Değerleri (graphic_test.cpp'den) ---
-    static constexpr float START_X = 100.f + 50.f;  // GAME_START_X (100) + padding (50)
+    static constexpr float START_X = 100.f + 47.f;  // GAME_START_X + dialog padding (diyalogla hizalı)
     static constexpr float START_Y = 50.f;           // Üstten boşluk
     static constexpr float TITLE_HEIGHT = 40.f;      // Başlık ile ilk slot arası mesafe
     static constexpr float LINE_HEIGHT = 25.f;       // Slotlar arası dikey mesafe
@@ -146,7 +152,7 @@ struct InventoryPanel {
         sf::Text title(font);
         title.setString("--- BACKPACK ---");
         title.setCharacterSize(20);
-        title.setFillColor(sf::Color(255, 215, 0)); // Altın sarısı
+        title.setFillColor(sf::Color(110, 0, 0)); // BORDEAUX (aynı tema)
         title.setPosition({START_X, START_Y});
         window.draw(title);
 
@@ -164,9 +170,9 @@ struct InventoryPanel {
 
                 // Hover renk değişimi: fare üstündeyse açık kırmızı, değilse koyu kırmızı
                 if (i == hoveredSlot) {
-                    slotText.setFillColor(sf::Color(255, 100, 100)); // Açık kırmızı
+                    slotText.setFillColor(sf::Color(170, 30, 30)); // Hover: açık bordeaux
                 } else {
-                    slotText.setFillColor(sf::Color::Red);           // Kırmızı
+                    slotText.setFillColor(sf::Color(110, 0, 0));   // BORDEAUX
                 }
             } else {
                 // BOŞ SLOT: Placeholder yazısı
@@ -177,5 +183,79 @@ struct InventoryPanel {
             window.draw(slotText);
             currentY += LINE_HEIGHT;
         }
+    }
+
+    // ============================================================
+    //  SYNC SLOTS - Slot isimlerini backend'den güncelle
+    // ============================================================
+    //  Her frame çağrılır. Player'in envanterindeki eşya isimlerini
+    //  slotNames vektörüne yazar. Eşya yoksa boş bırakır.
+    void syncSlots(Game& game) {
+        const auto& inv = game.getPlayer().getInventory();
+        for (int i = 0; i < MAX_SLOTS; i++) {
+            slotNames[i] = (i < static_cast<int>(inv.size()) && inv[i])
+                           ? inv[i]->getName() : "";
+        }
+    }
+
+    // ============================================================
+    //  HANDLE CLICK - Eşya kullanma / atma
+    // ============================================================
+    //  Envanter açık + fare dolu slot üzerindeyken:
+    //    Sol tık  → game.playerUseItem(index)  (Consumable/Weapon/Armor/KeyItem)
+    //    Sağ tık → game.playerDropItem(index) (canDrop kontrolü backend'de)
+    //  Sonuç mesajını string olarak döner. Boşsa bir şey olmamış demek.
+    //  Başarılı aksiyonda messageTimer restart edilir (hover koruması).
+    std::string handleClick(Game& game, bool isLeftClick, bool isRightClick) {
+        if (!isOpen || hoveredSlot < 0) return "";
+
+        const auto& inv = game.getPlayer().getInventory();
+        if (hoveredSlot >= static_cast<int>(inv.size()) || !inv[hoveredSlot]) return "";
+
+        std::string result;
+        if (isLeftClick)
+            result = game.playerUseItem(hoveredSlot);
+        else if (isRightClick)
+            result = game.playerDropItem(hoveredSlot);
+
+        if (!result.empty())
+            messageTimer.restart(); // Hover'dan 2sn koru
+
+        return result;
+    }
+
+    // ============================================================
+    //  GET HOVER DESC - Timer korumalı hover açıklaması
+    // ============================================================
+    //  Envanter açık + fare dolu slot üzerindeyken + messageTimer > 2sn:
+    //    Eşyanın açıklama metnini döner.
+    //  Aksi halde boş string döner (typewriter metni gösterilmeli).
+    std::string getHoverDesc(Game& game) {
+        if (!isOpen || hoveredSlot < 0) return "";
+        if (messageTimer.getElapsedTime().asSeconds() <= 2.0f) return "";
+
+        const auto& inv = game.getPlayer().getInventory();
+        if (hoveredSlot >= static_cast<int>(inv.size()) || !inv[hoveredSlot]) return "";
+
+        return game.getItemDesc(hoveredSlot);
+    }
+
+    // ============================================================
+    //  DRAW HOVER DESC - Hover açıklamasını diyalog kutusuna çizer
+    // ============================================================
+    //  true dönerse açıklama çizildi (typewriter çizilmesin).
+    //  false dönerse hover yok, typewriter çizilmeli.
+    bool drawHoverDesc(sf::RenderWindow& window, const sf::Font& font,
+                       sf::Vector2f dialogPos, Game& game) {
+        std::string desc = getHoverDesc(game);
+        if (desc.empty()) return false;
+
+        sf::Text descText(font);
+        descText.setCharacterSize(16);
+        descText.setFillColor(sf::Color(110, 0, 0));
+        descText.setString(desc);
+        descText.setPosition({dialogPos.x + 47.f, dialogPos.y + 30.f});
+        window.draw(descText);
+        return true;
     }
 };

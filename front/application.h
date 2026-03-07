@@ -41,35 +41,6 @@ private:
     // === BACKEND ===
     Game game;
 
-    // Stat panelini güncel Player değerleriyle doldurur
-    void refreshStats() {
-        Player& p = game.getPlayer();
-        statBox->updateStats(
-            std::to_string(p.getLvl()),
-            std::to_string(p.getHp()),  std::to_string(p.getMaxHp()),
-            std::to_string(p.getAtk()), std::to_string(p.getDef()),
-            std::to_string(p.getGold()),std::to_string(p.getExp()),
-            p.getWeaponName(),          p.getArmorName()
-        );
-    }
-
-    // Butonları state + oda çıkışlarına göre günceller
-    void refreshButtons() {
-        buttonMenu->applyState(currentState, buttonTex, buttonGreyTex,
-                               mapTex, mapGreyTex, invTex, invGreyTex);
-
-        // EXPLORING modunda gidilemez yönleri grileştir
-        if (currentState == GameState::EXPLORING) {
-            Room* room = game.getCurrentRoom();
-            if (room) {
-                if (room->n == -1) { buttonMenu->buttons[0].setTexture(buttonGreyTex); buttonMenu->buttons[0].setLabel(""); }
-                if (room->w == -1) { buttonMenu->buttons[1].setTexture(buttonGreyTex); buttonMenu->buttons[1].setLabel(""); }
-                if (room->e == -1) { buttonMenu->buttons[2].setTexture(buttonGreyTex); buttonMenu->buttons[2].setLabel(""); }
-                if (room->s == -1) { buttonMenu->buttons[3].setTexture(buttonGreyTex); buttonMenu->buttons[3].setLabel(""); }
-            }
-        }
-    }
-
 public:
     Application() {
         // Fullscreen window
@@ -101,17 +72,19 @@ public:
         typewriter.start(game.lookAtRoom(), font);
 
         // 4. Başlangıç butonlarını oda çıkışlarına göre ayarla
-        refreshButtons();
+        buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(),
+            buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
 
         // 5. Stat panelini gerçek değerlerle doldur
-        refreshStats();
+        statBox->syncWithPlayer(game.getPlayer());
     }
 
     void run() {
         while (window.isOpen()) {
             
             // Event Handling
-            bool isMouseJustClicked = false; // Her frame başında sıfırla
+            bool isLeftClick = false;
+            bool isRightClick = false;
             while (const std::optional eventOpt = window.pollEvent()) {
                 const auto& event = *eventOpt;
                 if (event.is<sf::Event::Closed>()) window.close();
@@ -123,17 +96,24 @@ public:
                     if (key->code == sf::Keyboard::Key::I) currentState = GameState::DIALOGUE;
                     if (key->code == sf::Keyboard::Key::O) currentState = GameState::SHOP;
                     // State değişince butonları güncelle
-                    refreshButtons();
+                    buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(),
+                        buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
                 }
-                // Fare tıklaması: sadece basıldığı ANda, tek sefer tetiklenir
-                if (event.is<sf::Event::MouseButtonPressed>())
-                    isMouseJustClicked = true;
+                // Fare tıklaması: hangi buton olduğunu da sakla
+                if (const auto* mousePress = event.getIf<sf::Event::MouseButtonPressed>()) {
+                    if (mousePress->button == sf::Mouse::Button::Left)
+                        isLeftClick = true;
+                    else if (mousePress->button == sf::Mouse::Button::Right)
+                        isRightClick = true;
+                }
             }
 
             // Mouse
             sf::Vector2f worldPos = window.mapPixelToCoords(sf::Mouse::getPosition(window), gameView);
             bool isMousePressed = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
             buttonMenu->update(worldPos, isMousePressed);
+
+            bool isMouseJustClicked = isLeftClick || isRightClick;
 
             // INV butonu tıklama kontrolü (buton 5 = INV)
             if (isMouseJustClicked && buttonMenu->buttons[5].bounds.contains(worldPos)) {
@@ -154,8 +134,13 @@ public:
 
             // Typewriter: güncelle, tıklanınca animasyonu atla
             typewriter.update();
-            if (isMouseJustClicked && !buttonMenu->buttons[5].bounds.contains(worldPos))
+            if (isLeftClick && !buttonMenu->buttons[5].bounds.contains(worldPos))
                 typewriter.skip();
+
+            // --- ENVANTER EŞYA ETKİLEŞİMİ ---
+            std::string itemResult = inventory.handleClick(game, isLeftClick, isRightClick);
+            if (!itemResult.empty())
+                typewriter.start(itemResult, font);
 
             // Yön butonlarına tıklama (EXPLORING modunda, envanter kapalıyken)
             if (isMouseJustClicked && currentState == GameState::EXPLORING && !inventory.isOpen) {
@@ -173,12 +158,17 @@ public:
 
                 if (!moveMsg.empty()) {
                     typewriter.start(moveMsg, font);
-                    refreshButtons(); // Yeni odanın çıkışlarına göre güncelle
+                    // Yeni odanın çıkışlarına göre butonları güncelle
+                    buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(),
+                        buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
                 }
             }
 
             // Her frame statları güncel tut
-            refreshStats();
+            statBox->syncWithPlayer(game.getPlayer());
+
+            // Envanter slotlarını backend'den güncelle
+            inventory.syncSlots(game);
 
             // Render
             window.clear(sf::Color::Black);
@@ -189,8 +179,9 @@ public:
             dialogBox->draw(window);
             statBox->draw(window, font);
             buttonMenu->draw(window, font);
-            // DialogBox konumunu draw'a geçiriyoruz ki yazı kutunun içine oturabilsin
-            typewriter.draw(window, font, dialogBox->sprite.getPosition());
+            // Diyalog kutusu: hover varsa eşya açıklaması, yoksa typewriter
+            if (!inventory.drawHoverDesc(window, font, dialogBox->sprite.getPosition(), game))
+                typewriter.draw(window, font, dialogBox->sprite.getPosition());
             // --- TEST: Sol üstte mevcut state'i göster (İLERİDE SİLİNECEK) ---
             sf::Text debugText(font);
             debugText.setCharacterSize(14);
