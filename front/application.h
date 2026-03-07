@@ -4,6 +4,7 @@
 #include "ui_elements.h"
 #include "typewriter.h"
 #include "gamestate.h"
+#include "inventory.h"
 
 class Application {
 private:
@@ -32,6 +33,9 @@ private:
 
     // Oyunun mevcut state'i (TEMPORARİ: Y/U/I/O tuşlarıyla değiştirilir)
     GameState currentState = GameState::EXPLORING;
+
+    // Envanter paneli
+    InventoryPanel inventory;
 
 public:
     Application() {
@@ -95,14 +99,34 @@ public:
             bool isMousePressed = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
             buttonMenu->update(worldPos, isMousePressed);
 
+            // INV butonu tıklama kontrolü (buton 5 = INV)
+            if (isMouseJustClicked && buttonMenu->buttons[5].bounds.contains(worldPos)) {
+                // Gri state'lerde açılamaz mesajı
+                if (currentState == GameState::DIALOGUE || currentState == GameState::SHOP) {
+                    typewriter.start("Can't open inventory right now.", font);
+                } else {
+                    bool opened = inventory.toggle(currentState);
+                    if (opened)
+                        typewriter.start("Inventory Opened.", font);
+                    else
+                        typewriter.start("Inventory Closed.", font);
+                }
+            }
+
+            // Envanter hover güncelleme
+            inventory.updateHover(worldPos);
+
             // Typewriter: güncelle, tıklanınca animasyonu atla
             typewriter.update();
-            if (isMouseJustClicked) typewriter.skip();
+            if (isMouseJustClicked && !buttonMenu->buttons[5].bounds.contains(worldPos))
+                typewriter.skip();
 
             // Render
             window.clear(sf::Color::Black);
             window.setView(gameView);
             gamePanel->draw(window);
+            // Envanter açıksa GamePanel'in üzerine çizilir
+            inventory.draw(window, font);
             dialogBox->draw(window);
             statBox->draw(window, font);
             buttonMenu->draw(window, font);
