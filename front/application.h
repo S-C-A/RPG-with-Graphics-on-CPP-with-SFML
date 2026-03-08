@@ -45,6 +45,9 @@ private:
     // Odadaki Nesneler (Yerdeki esya, NPC, vb.)
     WorldObjects worldObjects;
 
+    // Diyalog Menusu
+    DialogueMenu dialogueMenu;
+
 public:
     Application() {
         // Fullscreen window
@@ -76,7 +79,7 @@ public:
         typewriter.start(game.lookAtRoom(), font);
 
         // 4. Başlangıç butonlarını oda çıkışlarına göre ayarla
-        buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(),
+        buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
             buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
 
         // 5. Stat panelini gerçek değerlerle doldur
@@ -103,7 +106,7 @@ public:
                     if (key->code == sf::Keyboard::Key::I) currentState = GameState::DIALOGUE;
                     if (key->code == sf::Keyboard::Key::O) currentState = GameState::SHOP;
                     // State değişince butonları güncelle
-                    buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(),
+                    buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
                         buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
                 }
                 // Fare tıklaması: hangi buton olduğunu da sakla
@@ -152,21 +155,33 @@ public:
             // Yön butonlarına tıklama (EXPLORING modunda, envanter kapalıyken)
             if (isMouseJustClicked && currentState == GameState::EXPLORING && !inventory.isOpen) {
                 Room* room = game.getCurrentRoom();
+                NPC* roomNPC = game.getRoomNPC();
                 std::string moveMsg;
 
-                if (buttonMenu->buttons[0].bounds.contains(worldPos) && room->n != -1)
-                    moveMsg = game.attemptMove(room->n);
-                else if (buttonMenu->buttons[1].bounds.contains(worldPos) && room->w != -1)
-                    moveMsg = game.attemptMove(room->w);
-                else if (buttonMenu->buttons[2].bounds.contains(worldPos) && room->e != -1)
-                    moveMsg = game.attemptMove(room->e);
-                else if (buttonMenu->buttons[3].bounds.contains(worldPos) && room->s != -1)
-                    moveMsg = game.attemptMove(room->s);
+                // Engelleme kontrolü (hasMet değilse butonlara tıklanması hareket ettirmez)
+                bool isMovementBlocked = (roomNPC && !roomNPC->hasMet());
+
+                if (buttonMenu->buttons[0].bounds.contains(worldPos) && room->n != -1) {
+                    if (isMovementBlocked) moveMsg = "There is someone who catches your interest.";
+                    else moveMsg = game.attemptMove(room->n);
+                }
+                else if (buttonMenu->buttons[1].bounds.contains(worldPos) && room->w != -1) {
+                    if (isMovementBlocked) moveMsg = "There is someone who catches your interest.";
+                    else moveMsg = game.attemptMove(room->w);
+                }
+                else if (buttonMenu->buttons[2].bounds.contains(worldPos) && room->e != -1) {
+                    if (isMovementBlocked) moveMsg = "There is someone who catches your interest.";
+                    else moveMsg = game.attemptMove(room->e);
+                }
+                else if (buttonMenu->buttons[3].bounds.contains(worldPos) && room->s != -1) {
+                    if (isMovementBlocked) moveMsg = "There is someone who catches your interest.";
+                    else moveMsg = game.attemptMove(room->s);
+                }
 
                 if (!moveMsg.empty()) {
                     typewriter.start(moveMsg, font);
                     // Yeni odanın çıkışlarına göre butonları güncelle
-                    buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(),
+                    buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
                         buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
                     
                     // Yeni odadaki objeleri (eşya vs.) yükle
@@ -176,9 +191,75 @@ public:
 
             // Dünya nesneleriyle etkileşim (EXPLORING, envanter kapalı, sol tık)
             if (isLeftClick && currentState == GameState::EXPLORING && !inventory.isOpen) {
-                std::string objMsg = worldObjects.handleLeftClick(game, worldPos);
+                std::string objMsg = worldObjects.handleLeftClick(game, worldPos); // Esya
                 if (!objMsg.empty()) {
                     typewriter.start(objMsg, font);
+                } else {
+                    NPC* clickedNPC = worldObjects.handleLeftClickNPC(game, worldPos); // NPC
+                    if (clickedNPC) {
+                        currentState = GameState::DIALOGUE;
+                        std::string startText = game.startDialogue(clickedNPC);
+                        typewriter.start(startText, font);
+                        
+                        dialogueMenu.clear(); // Yeni konusma basliyor, menuyu temizle
+
+                        // NPC'ye tiklandi, butonlari diyalog moduna al
+                        buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
+                            buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
+                    }
+                }
+            }
+
+            // ==========================================
+            // DIYALOG SISTEMI 
+            // ==========================================
+            if (currentState == GameState::DIALOGUE) {
+                // Eger yazi bittiyse ve secenekler henuz yuklenmediyse
+                if (typewriter.isFinished && dialogueMenu.isEmpty()) {
+                    std::vector<std::string> opts = game.getDialogueOptions();
+                    dialogueMenu.loadOptions(opts, font, {dialogBox->sprite.getPosition().x + 50.f, dialogBox->sprite.getPosition().y + 68.f});
+                }
+                
+                // Hover guncellemesi
+                dialogueMenu.updateHover(worldPos);
+
+                // Seceneklere tiklama
+                if (isLeftClick && typewriter.isFinished && !dialogueMenu.isEmpty()) {
+                    int clickedIdx = dialogueMenu.getClickedOption(worldPos);
+                    if (clickedIdx != -1) {
+                        std::string response = game.selectDialogueOption(clickedIdx);
+                        
+                        if (response.empty()) {
+                            // Konusma bitti
+                            currentState = GameState::EXPLORING;
+                            typewriter.start(game.lookAtRoom(), font);
+                            buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
+                                buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
+                            worldObjects.syncWithRoom(game); // Yerdeki yeni esyalari yukle
+                            dialogueMenu.clear();
+                        } 
+                        else if (response == "COMBAT_START") {
+                            currentState = GameState::COMBAT;
+                            typewriter.start("ENEMIES ATTACK!", font);
+                            dialogueMenu.clear();
+                            buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
+                                buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
+                        } 
+                        else if (response == "SHOP_OPEN") {
+                            currentState = GameState::SHOP;
+                            game.enterShop();
+                            typewriter.start("Welcome to my shop! Take a look.", font);
+                            dialogueMenu.clear();
+                            // Ileride buraya shopMenu eklenecek
+                            buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
+                                buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
+                        } 
+                        else {
+                            // NPc konusmaya devam ediyor
+                            typewriter.start(response, font);
+                            dialogueMenu.clear(); // Yeni secenekler yazi bitince yuklenecek
+                        }
+                    }
                 }
             }
 
@@ -204,9 +285,16 @@ public:
             dialogBox->draw(window);
             statBox->draw(window, font);
             buttonMenu->draw(window, font);
-            // Diyalog kutusu: hover varsa eşya açıklaması, yoksa typewriter
-            if (!inventory.drawHoverDesc(window, font, dialogBox->sprite.getPosition(), game))
+            
+            // Diyalog kutusu: hover varsa eşya açıklaması, yoksa typewriter yazisi
+            if (!inventory.drawHoverDesc(window, font, dialogBox->sprite.getPosition(), game)) {
                 typewriter.draw(window, font, dialogBox->sprite.getPosition());
+            }
+
+            // Diyalog Secenekleri cizimi (yazi sirasinda cizilmez)
+            if (currentState == GameState::DIALOGUE && typewriter.isFinished) {
+                dialogueMenu.draw(window);
+            }
             // --- TEST: Sol üstte mevcut state'i göster (İLERİDE SİLİNECEK) ---
             sf::Text debugText(font);
             debugText.setCharacterSize(14);

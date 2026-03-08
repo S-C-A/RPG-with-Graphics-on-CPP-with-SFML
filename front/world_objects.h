@@ -42,12 +42,48 @@ struct ItemTarget {
 };
 
 // ============================================================
+//  NPC TARGET - Odadaki NPC'nin Gorseli
+// ============================================================
+struct NPCTarget {
+    sf::RectangleShape shape;
+
+    NPCTarget(float x, float y) {
+        shape.setSize({50.f, 50.f});
+        shape.setPosition({x, y});
+        shape.setFillColor(sf::Color::Cyan);
+        shape.setOutlineThickness(2.f);
+        shape.setOutlineColor(sf::Color::Blue);
+        shape.setRotation(sf::degrees(45.f));
+        shape.setOrigin({25.f, 25.f});
+    }
+
+    void update(sf::Vector2f mousePos) {
+        if (shape.getGlobalBounds().contains(mousePos)) {
+            shape.setScale({1.1f, 1.1f});
+            shape.setFillColor(sf::Color::White);
+        } else {
+            shape.setScale({1.0f, 1.0f});
+            shape.setFillColor(sf::Color::Cyan);
+        }
+    }
+
+    bool isClicked(sf::Vector2f mousePos) const {
+        return shape.getGlobalBounds().contains(mousePos);
+    }
+
+    void draw(sf::RenderWindow& window) {
+        window.draw(shape);
+    }
+};
+
+// ============================================================
 //  WORLD OBJECTS - Odadaki Tüm Nesnelerin Yöneticisi
 // ============================================================
 //  application.h'ta sadece bu struct instantiate edilir.
 //  Oda degistikce syncWithRoom cagirilir.
 struct WorldObjects {
     std::optional<ItemTarget> groundItem;
+    std::optional<NPCTarget> npc;
 
     // Odaya girildiginde (veya esya alindiginda) objeleri guncelle
     void syncWithRoom(Game& game) {
@@ -61,12 +97,24 @@ struct WorldObjects {
         } else {
             groundItem.reset();
         }
+
+        if (r && r->npcID != -1) {
+            float centerX = GAME_START_X + (LEFT_WIDTH / 2.f);
+            float centerY = SPLIT_Y / 2.f;
+            // NPC'yi esyanin bir tik sagina cizelim ki ust uste binmesinler
+            npc.emplace(centerX + 80.f, centerY + 30.f); 
+        } else {
+            npc.reset();
+        }
     }
 
     // Her frame hover kontrolü
     void update(sf::Vector2f mousePos) {
         if (groundItem) {
             groundItem->update(mousePos);
+        }
+        if (npc) {
+            npc->update(mousePos);
         }
     }
 
@@ -84,10 +132,22 @@ struct WorldObjects {
         return "";
     }
 
+    // NPC Tıklama kontrolü (Sol tık) - Tiklanirsa NPC'yi doner
+    NPC* handleLeftClickNPC(Game& game, sf::Vector2f mousePos) {
+        if (npc && npc->isClicked(mousePos)) {
+            NPC* roomNPC = game.getRoomNPC();
+            return roomNPC;
+        }
+        return nullptr;
+    }
+
     // Çizim
     void draw(sf::RenderWindow& window) {
         if (groundItem) {
             groundItem->draw(window);
+        }
+        if (npc) {
+            npc->draw(window);
         }
     }
 };

@@ -5,6 +5,7 @@
 #include "gamestate.h"
 #include "../room.h"
 #include "../player.h"
+#include "../NPC.h"
 
 const float LEFT_WIDTH = 560.f; 
 const float RIGHT_WIDTH = 200.f; 
@@ -180,8 +181,9 @@ struct ButtonMenu {
 
     // State + oda çıkışlarına göre butonları tek çağrıda günceller.
     // EXPLORING modunda gidilemez yönler otomatik grileştir.
-    // Application'da: buttonMenu->applyStateWithRoom(state, room, textures...);
-    void applyStateWithRoom(GameState state, Room* room,
+    // Eger odada henuz konusulmamis bir NPC varsa, tum yonleri gri yap.
+    // Application'da: buttonMenu->applyStateWithRoom(state, room, npc, textures...);
+    void applyStateWithRoom(GameState state, Room* room, NPC* roomNPC,
                             const sf::Texture& btnTex,    const sf::Texture& btnGreyTex,
                             const sf::Texture& mapTex,    const sf::Texture& mapGreyTex,
                             const sf::Texture& invTex,    const sf::Texture& invGreyTex) {
@@ -189,10 +191,73 @@ struct ButtonMenu {
 
         // EXPLORING modunda gidilemez yönleri grileştir
         if (state == GameState::EXPLORING && room) {
-            if (room->n == -1) { buttons[0].setTexture(btnGreyTex); buttons[0].setLabel(""); }
-            if (room->w == -1) { buttons[1].setTexture(btnGreyTex); buttons[1].setLabel(""); }
-            if (room->e == -1) { buttons[2].setTexture(btnGreyTex); buttons[2].setLabel(""); }
-            if (room->s == -1) { buttons[3].setTexture(btnGreyTex); buttons[3].setLabel(""); }
+            bool blockMovement = (roomNPC && !roomNPC->hasMet());
+
+            if (blockMovement || room->n == -1) { buttons[0].setTexture(btnGreyTex); buttons[0].setLabel(""); }
+            if (blockMovement || room->w == -1) { buttons[1].setTexture(btnGreyTex); buttons[1].setLabel(""); }
+            if (blockMovement || room->e == -1) { buttons[2].setTexture(btnGreyTex); buttons[2].setLabel(""); }
+            if (blockMovement || room->s == -1) { buttons[3].setTexture(btnGreyTex); buttons[3].setLabel(""); }
         }
+    }
+};
+
+// ============================================================
+//  DIALOGUE MENU - NPC Konusma Secenekleri
+// ============================================================
+struct DialogueMenu {
+    struct OptionText {
+        sf::Text text;
+        int index;
+        
+        OptionText(const sf::Font& font, const std::string& str, float x, float y, int idx)
+            : text(font), index(idx) 
+        {
+            text.setString("> " + str);
+            text.setCharacterSize(18);
+            text.setFillColor(sf::Color(200, 200, 200));
+            text.setPosition({x, y});
+        }
+    };
+    std::vector<OptionText> options;
+
+    void loadOptions(const std::vector<std::string>& opts, const sf::Font& font, sf::Vector2f startPos) {
+        options.clear();
+        for (size_t i = 0; i < opts.size(); i++) {
+            options.emplace_back(font, opts[i], startPos.x, startPos.y + (i * 20.f), (int)i);
+        }
+    }
+
+    void updateHover(sf::Vector2f mousePos) {
+        for (auto& opt : options) {
+            if (opt.text.getGlobalBounds().contains(mousePos)) {
+                opt.text.setFillColor(sf::Color::Yellow);
+            } else {
+                opt.text.setFillColor(sf::Color(200, 200, 200));
+            }
+        }
+    }
+
+    // Hangisine tiklandiysa indexini doner. Hicbiriyse -1 doner.
+    int getClickedOption(sf::Vector2f mousePos) const {
+        for (const auto& opt : options) {
+            if (opt.text.getGlobalBounds().contains(mousePos)) {
+                return opt.index;
+            }
+        }
+        return -1;
+    }
+
+    void draw(sf::RenderWindow& window) {
+        for (const auto& opt : options) {
+            window.draw(opt.text);
+        }
+    }
+
+    void clear() {
+        options.clear();
+    }
+    
+    bool isEmpty() const {
+        return options.empty();
     }
 };
