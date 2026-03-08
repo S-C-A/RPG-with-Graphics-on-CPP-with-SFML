@@ -5,6 +5,7 @@
 #include "typewriter.h"
 #include "gamestate.h"
 #include "inventory.h"
+#include "world_objects.h"
 #include "../game.h"
 
 class Application {
@@ -40,6 +41,9 @@ private:
 
     // === BACKEND ===
     Game game;
+
+    // Odadaki Nesneler (Yerdeki esya, NPC, vb.)
+    WorldObjects worldObjects;
 
 public:
     Application() {
@@ -77,6 +81,9 @@ public:
 
         // 5. Stat panelini gerçek değerlerle doldur
         statBox->syncWithPlayer(game.getPlayer());
+
+        // 6. Başlangıç odasındaki nesneleri yükle
+        worldObjects.syncWithRoom(game);
     }
 
     void run() {
@@ -125,7 +132,7 @@ public:
                     if (opened)
                         typewriter.start("Inventory Opened.", font);
                     else
-                        typewriter.start("Inventory Closed.", font);
+                        typewriter.start(game.lookAtRoom(), font);
                 }
             }
 
@@ -161,6 +168,17 @@ public:
                     // Yeni odanın çıkışlarına göre butonları güncelle
                     buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(),
                         buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
+                    
+                    // Yeni odadaki objeleri (eşya vs.) yükle
+                    worldObjects.syncWithRoom(game);
+                }
+            }
+
+            // Dünya nesneleriyle etkileşim (EXPLORING, envanter kapalı, sol tık)
+            if (isLeftClick && currentState == GameState::EXPLORING && !inventory.isOpen) {
+                std::string objMsg = worldObjects.handleLeftClick(game, worldPos);
+                if (!objMsg.empty()) {
+                    typewriter.start(objMsg, font);
                 }
             }
 
@@ -170,11 +188,18 @@ public:
             // Envanter slotlarını backend'den güncelle
             inventory.syncSlots(game);
 
+            // Odadaki nesnelerin (esya) hover durumunu güncelle
+            worldObjects.update(worldPos);
+
             // Render
             window.clear(sf::Color::Black);
             window.setView(gameView);
             gamePanel->draw(window);
-            // Envanter açıksa GamePanel'in üzerine çizilir
+
+            // Odadaki nesneleri GamePanel uzerine ciz (envanterin "altinda" kalsin)
+            worldObjects.draw(window);
+
+            // Envanter açıksa GamePanel ve nesnelerin üzerine çizilir
             inventory.draw(window, font);
             dialogBox->draw(window);
             statBox->draw(window, font);

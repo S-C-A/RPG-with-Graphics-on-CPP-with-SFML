@@ -1,9 +1,6 @@
 #pragma once
 #include <string>
 
-// === OYUN STATE'LERİ ===
-// Bu enum hangi ekranın aktif olduğunu belirler.
-// Her state butonların yazısını, rengini ve diyalog kutusu davranışını değiştirecek.
 enum class GameState {
     EXPLORING,  // Normal oda keşfi (NORTH/WEST/EAST/SOUTH butonları)
     COMBAT,     // Savaş modu      (ATK/DEF/ITEM/RUN butonları)
