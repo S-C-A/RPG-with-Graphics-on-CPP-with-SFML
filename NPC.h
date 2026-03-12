@@ -73,8 +73,6 @@ public:
    
     void setRootNode(int newRoot) { 
         currentRootNode = newRoot; 
-        // Root degistigi an tanisma durumu da guncellenmis sayilir
-        metBefore = true; 
     }
 
     void addShopItem(int id, int price) {

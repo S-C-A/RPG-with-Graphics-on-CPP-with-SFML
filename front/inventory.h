@@ -87,8 +87,8 @@ struct InventoryPanel {
     //  true dönerse "açıldı", false dönerse "kapandı" demek.
     //  Application bu dönüş değerine göre typewriter mesajı gösterebilir.
     bool toggle(GameState state) {
-        // Gri state'lerde envanter açılamaz
-        if (state == GameState::DIALOGUE || state == GameState::SHOP) {
+        // Diyalog anında envanter açılamaz
+        if (state == GameState::DIALOGUE) {
             return false;
         }
 
@@ -206,17 +206,21 @@ struct InventoryPanel {
     //    Sağ tık → game.playerDropItem(index) (canDrop kontrolü backend'de)
     //  Sonuç mesajını string olarak döner. Boşsa bir şey olmamış demek.
     //  Başarılı aksiyonda messageTimer restart edilir (hover koruması).
-    std::string handleClick(Game& game, bool isLeftClick, bool isRightClick) {
+    std::string handleClick(Game& game, bool isLeftClick, bool isRightClick, bool isSelling = false) {
         if (!isOpen || hoveredSlot < 0) return "";
 
         const auto& inv = game.getPlayer().getInventory();
         if (hoveredSlot >= static_cast<int>(inv.size()) || !inv[hoveredSlot]) return "";
 
         std::string result;
-        if (isLeftClick)
-            result = game.playerUseItem(hoveredSlot);
-        else if (isRightClick)
-            result = game.playerDropItem(hoveredSlot);
+        if (isSelling) {
+            if (isLeftClick) result = game.sellShopItem(hoveredSlot);
+        } else {
+            if (isLeftClick)
+                result = game.playerUseItem(hoveredSlot);
+            else if (isRightClick)
+                result = game.playerDropItem(hoveredSlot);
+        }
 
         if (!result.empty())
             messageTimer.restart(); // Hover'dan 2sn koru
@@ -230,14 +234,19 @@ struct InventoryPanel {
     //  Envanter açık + fare dolu slot üzerindeyken + messageTimer > 2sn:
     //    Eşyanın açıklama metnini döner.
     //  Aksi halde boş string döner (typewriter metni gösterilmeli).
-    std::string getHoverDesc(Game& game) {
+    std::string getHoverDesc(Game& game, bool isSelling = false) {
         if (!isOpen || hoveredSlot < 0) return "";
         if (messageTimer.getElapsedTime().asSeconds() <= 2.0f) return "";
 
         const auto& inv = game.getPlayer().getInventory();
         if (hoveredSlot >= static_cast<int>(inv.size()) || !inv[hoveredSlot]) return "";
 
-        return game.getItemDesc(hoveredSlot);
+        std::string desc = game.getItemDesc(hoveredSlot);
+        if (isSelling) {
+            int sellPrice = (inv[hoveredSlot]->getPrice() * 3) / 5;
+            desc += "\n[SELL PRICE: " + std::to_string(sellPrice) + " G]";
+        }
+        return desc;
     }
 
     // ============================================================
@@ -246,8 +255,8 @@ struct InventoryPanel {
     //  true dönerse açıklama çizildi (typewriter çizilmesin).
     //  false dönerse hover yok, typewriter çizilmeli.
     bool drawHoverDesc(sf::RenderWindow& window, const sf::Font& font,
-                       sf::Vector2f dialogPos, Game& game) {
-        std::string desc = getHoverDesc(game);
+                       sf::Vector2f dialogPos, Game& game, bool isSelling = false) {
+        std::string desc = getHoverDesc(game, isSelling);
         if (desc.empty()) return false;
 
         sf::Text descText(font);

@@ -48,6 +48,9 @@ private:
     // Diyalog Menusu
     DialogueMenu dialogueMenu;
 
+    // Dukkan Menusu
+    ShopMenu shopMenu;
+
 public:
     Application() {
         // Fullscreen window
@@ -127,9 +130,9 @@ public:
 
             // INV butonu tıklama kontrolü (buton 5 = INV)
             if (isMouseJustClicked && buttonMenu->buttons[5].bounds.contains(worldPos)) {
-                // Gri state'lerde açılamaz mesajı
-                if (currentState == GameState::DIALOGUE || currentState == GameState::SHOP) {
-                    typewriter.start("Can't open inventory right now.", font);
+                // Sadece Diyalogda kapali kalsin
+                if (currentState == GameState::DIALOGUE) {
+                    typewriter.start("Can't open inventory during dialogue.", font);
                 } else {
                     bool opened = inventory.toggle(currentState);
                     if (opened)
@@ -148,7 +151,8 @@ public:
                 typewriter.skip();
 
             // --- ENVANTER EŞYA ETKİLEŞİMİ ---
-            std::string itemResult = inventory.handleClick(game, isLeftClick, isRightClick);
+            bool isSelling = (currentState == GameState::SHOP && shopMenu.isSellingMode);
+            std::string itemResult = inventory.handleClick(game, isLeftClick, isRightClick, isSelling);
             if (!itemResult.empty())
                 typewriter.start(itemResult, font);
 
@@ -186,6 +190,45 @@ public:
                     
                     // Yeni odadaki objeleri (eşya vs.) yükle
                     worldObjects.syncWithRoom(game);
+                }
+            }
+
+            // ==========================================
+            // SHOP SISTEMI (Secenek Butonlari)
+            // ==========================================
+            if (isMouseJustClicked && currentState == GameState::SHOP) {
+                // 0: BUY, 1: SELL, 2: TALK, 3: EXIT
+                if (buttonMenu->buttons[0].bounds.contains(worldPos)) {
+                    if (inventory.isOpen) inventory.toggle(GameState::EXPLORING); // Envanteri kapat
+                    shopMenu.isSellingMode = false;
+                    typewriter.start("What are you buying?", font);
+                    std::vector<std::string> opts = game.getShopItems();
+                    shopMenu.loadOptions(opts, font, {dialogBox->sprite.getPosition().x + 50.f, dialogBox->sprite.getPosition().y + 68.f});
+                }
+                else if (buttonMenu->buttons[1].bounds.contains(worldPos)) {
+                    shopMenu.isSellingMode = true;
+                    typewriter.start("What are you selling? (Click your inventory)", font);
+                    shopMenu.clear();
+                    if (!inventory.isOpen) inventory.toggle(currentState); // Satis icin envanteri ac
+                }
+                else if (buttonMenu->buttons[2].bounds.contains(worldPos)) {
+                    if (inventory.isOpen) inventory.toggle(GameState::EXPLORING); // Envanteri kapat
+                    currentState = GameState::DIALOGUE;
+                    shopMenu.clear();
+                    game.exitShop();
+                    std::string startText = game.startDialogue(game.getRoomNPC());
+                    typewriter.start(startText, font);
+                    buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
+                        buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
+                }
+                else if (buttonMenu->buttons[3].bounds.contains(worldPos)) {
+                    if (inventory.isOpen) inventory.toggle(GameState::EXPLORING); // Envanteri kapat
+                    currentState = GameState::EXPLORING;
+                    game.exitShop();
+                    shopMenu.clear();
+                    typewriter.start(game.lookAtRoom(), font);
+                    buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
+                        buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
                 }
             }
 
@@ -250,15 +293,35 @@ public:
                             game.enterShop();
                             typewriter.start("Welcome to my shop! Take a look.", font);
                             dialogueMenu.clear();
-                            // Ileride buraya shopMenu eklenecek
+                            
+                            shopMenu.isSellingMode = false;
+                            std::vector<std::string> opts = game.getShopItems();
+                            shopMenu.loadOptions(opts, font, {dialogBox->sprite.getPosition().x + 50.f, dialogBox->sprite.getPosition().y + 68.f});
+
                             buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
                                 buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
                         } 
                         else {
-                            // NPc konusmaya devam ediyor
+                            // NPC konusmaya devam ediyor
                             typewriter.start(response, font);
                             dialogueMenu.clear(); // Yeni secenekler yazi bitince yuklenecek
                         }
+                    }
+                }
+            }
+
+            // ==========================================
+            // SHOP SISTEMI (Satin Alma - BUY Modu Eşya Seçimi)
+            // ==========================================
+            if (currentState == GameState::SHOP && !shopMenu.isSellingMode) {
+                shopMenu.updateHover(worldPos);
+
+                if (isLeftClick && typewriter.isFinished && !shopMenu.isEmpty()) {
+                    int clickedIdx = shopMenu.getClickedOption(worldPos);
+                    if (clickedIdx != -1) {
+                        std::string result = game.buyShopItem(clickedIdx);
+                        typewriter.start(result, font);
+                        statBox->syncWithPlayer(game.getPlayer());
                     }
                 }
             }
@@ -287,13 +350,18 @@ public:
             buttonMenu->draw(window, font);
             
             // Diyalog kutusu: hover varsa eşya açıklaması, yoksa typewriter yazisi
-            if (!inventory.drawHoverDesc(window, font, dialogBox->sprite.getPosition(), game)) {
+            if (!inventory.drawHoverDesc(window, font, dialogBox->sprite.getPosition(), game, isSelling)) {
                 typewriter.draw(window, font, dialogBox->sprite.getPosition());
             }
 
             // Diyalog Secenekleri cizimi (yazi sirasinda cizilmez)
             if (currentState == GameState::DIALOGUE && typewriter.isFinished) {
                 dialogueMenu.draw(window);
+            }
+
+            // Shop Secenekleri cizimi
+            if (currentState == GameState::SHOP && typewriter.isFinished && !shopMenu.isSellingMode) {
+                shopMenu.draw(window);
             }
             // --- TEST: Sol üstte mevcut state'i göster (İLERİDE SİLİNECEK) ---
             sf::Text debugText(font);

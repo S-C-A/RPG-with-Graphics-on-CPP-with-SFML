@@ -114,6 +114,7 @@ public:
 
     string startDialogue(NPC* npc) {
         if (!npc) return "";
+        npc->setMet(true); // <--- Etkilesime girildigi an tanisma gerceklesir
         activeNPC = npc;
         activeNode = activeNPC->getDialogue(activeNPC->getRootNode());
         if (activeNode) return activeNode->npcText;

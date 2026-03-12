@@ -261,3 +261,73 @@ struct DialogueMenu {
         return options.empty();
     }
 };
+
+// ============================================================
+//  SHOP MENU - Dükkan Eşyaları (BUY Modu)
+// ============================================================
+struct ShopMenu {
+    struct OptionText {
+        sf::Text text;
+        int index; // Shop listesindeki sırası
+
+        OptionText(const sf::Font& font, const std::string& str, float x, float y, int idx)
+            : text(font), index(idx) 
+        {
+            text.setString("> " + str);
+            text.setCharacterSize(18);
+            text.setFillColor(sf::Color(200, 200, 200));
+            text.setPosition({x, y});
+        }
+    };
+    std::vector<OptionText> options;
+    bool isSellingMode;
+
+    ShopMenu() : isSellingMode(false) {}
+
+    void loadOptions(const std::vector<std::string>& opts, const sf::Font& font, sf::Vector2f startPos) {
+        options.clear();
+        for (size_t i = 0; i < opts.size(); i++) {
+            options.emplace_back(font, opts[i], startPos.x, startPos.y + (i * 20.f), (int)i);
+        }
+    }
+
+    void updateHover(sf::Vector2f mousePos) {
+        if (isSellingMode) return; // Satis modundayken envanter kullanilir, bu liste islevsiz
+        
+        for (auto& opt : options) {
+            if (opt.text.getGlobalBounds().contains(mousePos)) {
+                opt.text.setFillColor(sf::Color::Yellow);
+            } else {
+                opt.text.setFillColor(sf::Color(200, 200, 200));
+            }
+        }
+    }
+
+    // Hangisine tiklandiysa indexini doner. Hicbiriyse -1 doner.
+    int getClickedOption(sf::Vector2f mousePos) const {
+        if (isSellingMode) return -1;
+
+        for (const auto& opt : options) {
+            if (opt.text.getGlobalBounds().contains(mousePos)) {
+                return opt.index;
+            }
+        }
+        return -1;
+    }
+
+    void draw(sf::RenderWindow& window) {
+        if (isSellingMode) return; // Satis modundaysa secenekler cizilmez
+        
+        for (const auto& opt : options) {
+            window.draw(opt.text);
+        }
+    }
+
+    void clear() {
+        options.clear();
+    }
+    
+    bool isEmpty() const {
+        return options.empty();
+    }
+};

@@ -37,8 +37,8 @@ NODE 11 It is hidden in Room 4. Be careful.
 NPC 51 Mysterious_Merchant
 
 // STOKLARI BELIRLE
-SHOP_ITEM 1 5    <-- Healing Potion (50 Gold)
-SHOP_ITEM 199 10 <-- God Sword (500 Gold - Pahali!)
+SHOP_ITEM 1 5    
+SHOP_ITEM 199 10 
 
 NODE 0 Psst... Hey you. Do you have coin?
 CHOICE 1 : Show me your wares.
