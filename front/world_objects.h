@@ -6,6 +6,42 @@
 #include "ui_elements.h" // LEFT_WIDTH, SPLIT_Y, vs icin
 
 // ============================================================
+//  ENEMY TARGET - Savaş Ekranındaki Düşman Görseli
+// ============================================================
+struct EnemyTarget {
+    sf::RectangleShape shape;
+    sf::Color normalColor;
+    sf::Color hoverColor;
+    int index; // Hangi siradaki dusman oldugunu tutabilmek icin
+
+    EnemyTarget(float x, float y, int _index) : index(_index) {
+        shape.setSize({100.f, 150.f}); 
+        shape.setPosition({x, y});
+        normalColor = sf::Color(50, 0, 0);   
+        hoverColor = sf::Color(255, 50, 50); 
+        shape.setFillColor(normalColor);
+        shape.setOutlineThickness(2.f);
+        shape.setOutlineColor(sf::Color::Black);
+    }
+
+    void update(sf::Vector2f mousePos) {
+        if (shape.getGlobalBounds().contains(mousePos)) {
+            shape.setFillColor(hoverColor); 
+        } else {
+            shape.setFillColor(normalColor); 
+        }
+    }
+
+    bool isClicked(sf::Vector2f mousePos) const {
+        return shape.getGlobalBounds().contains(mousePos);
+    }
+
+    void draw(sf::RenderWindow& window) {
+        window.draw(shape);
+    }
+};
+
+// ============================================================
 //  ITEM TARGET - Yerdeki Esyanin Gorseli
 // ============================================================
 struct ItemTarget {
@@ -84,24 +120,45 @@ struct NPCTarget {
 struct WorldObjects {
     std::optional<ItemTarget> groundItem;
     std::optional<NPCTarget> npc;
+    std::vector<EnemyTarget> enemies; // Odadaki dusmanlar
 
-    // Odaya girildiginde (veya esya alindiginda) objeleri guncelle
+    // Odaya girildiginde objeleri guncelle
     void syncWithRoom(Game& game) {
         Room* r = game.getCurrentRoom();
-        if (r && r->itemID != -1) {
-            // Ekranin ortasina yerlestir
+        
+        // Önce düşmanları temizle ve yeniden oku
+        enemies.clear();
+        if (r && !r->monsterID.empty()) {
+            int totalMonsters = r->monsterID.size();
             float centerX = GAME_START_X + (LEFT_WIDTH / 2.f);
             float centerY = SPLIT_Y / 2.f;
-                
+            
+            // X ekseni yerlesim ayarlari
+            float spacing = 150.f; // Iki dusman arasi mesafe
+            float startX = centerX - ((totalMonsters - 1) * spacing) / 2.f;
+
+            for (size_t i = 0; i < r->monsterID.size(); i++) {
+                if (r->monsterID[i] != -1) {
+                    // -50 f: 100(genislik) / 2, -75 f: 150(yukseklik) / 2
+                    enemies.emplace_back(startX + (i * spacing) - 50.f, centerY - 75.f, (int)i);
+                }
+            }
+        }
+
+        bool hasEnemies = !enemies.empty();
+
+        // Dusman VARSA baska hicbir seye (Esya, NPC) tiklanmasin diye onlari gosterme
+        if (r && r->itemID != -1 && !hasEnemies) {
+            float centerX = GAME_START_X + (LEFT_WIDTH / 2.f);
+            float centerY = SPLIT_Y / 2.f;
             groundItem.emplace(centerX, centerY + 30.f);
         } else {
             groundItem.reset();
         }
 
-        if (r && r->npcID != -1) {
+        if (r && r->npcID != -1 && !hasEnemies) {
             float centerX = GAME_START_X + (LEFT_WIDTH / 2.f);
             float centerY = SPLIT_Y / 2.f;
-            // NPC'yi esyanin bir tik sagina cizelim ki ust uste binmesinler
             npc.emplace(centerX + 80.f, centerY + 30.f); 
         } else {
             npc.reset();
@@ -110,12 +167,11 @@ struct WorldObjects {
 
     // Her frame hover kontrolü
     void update(sf::Vector2f mousePos) {
-        if (groundItem) {
-            groundItem->update(mousePos);
+        for (auto& enemy : enemies) {
+            enemy.update(mousePos);
         }
-        if (npc) {
-            npc->update(mousePos);
-        }
+        if (groundItem) groundItem->update(mousePos);
+        if (npc) npc->update(mousePos);
     }
 
     // Tıklama kontrolü (Sol tık)
@@ -141,13 +197,22 @@ struct WorldObjects {
         return nullptr;
     }
 
+    // Dusman Tiklama kontrolu - Hangi dusmana tiklandiginin index'ini (0,1,2..) doner. Secilmediyse -1
+    int handleLeftClickEnemy(sf::Vector2f mousePos) const {
+        for (const auto& enemy : enemies) {
+            if (enemy.isClicked(mousePos)) {
+                return enemy.index;
+            }
+        }
+        return -1;
+    }
+
     // Çizim
     void draw(sf::RenderWindow& window) {
-        if (groundItem) {
-            groundItem->draw(window);
+        for (auto& enemy : enemies) {
+            enemy.draw(window);
         }
-        if (npc) {
-            npc->draw(window);
-        }
+        if (groundItem) groundItem->draw(window);
+        if (npc) npc->draw(window);
     }
 };

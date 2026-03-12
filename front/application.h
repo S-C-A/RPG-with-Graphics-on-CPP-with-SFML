@@ -81,15 +81,27 @@ public:
         if (!font.openFromFile("font.ttf")) return;
         typewriter.start(game.lookAtRoom(), font);
 
-        // 4. Başlangıç butonlarını oda çıkışlarına göre ayarla
+        // 4. Başlangıç odasındaki nesneleri yükle
+        worldObjects.syncWithRoom(game);
+
+        // Odada dusman varsa savas modunda basla
+        bool hasAliveEnemies = false;
+        if (game.getCurrentRoom()) {
+            for (int id : game.getCurrentRoom()->monsterID) {
+                if (id != -1) hasAliveEnemies = true;
+            }
+        }
+        if (hasAliveEnemies) {
+            currentState = GameState::COMBAT;
+            typewriter.start("Enemies appeared! Prepare for battle.", font);
+        }
+
+        // 5. Başlangıç butonlarını oda çıkışlarına göre ayarla
         buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
             buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
 
-        // 5. Stat panelini gerçek değerlerle doldur
+        // 6. Stat panelini gerçek değerlerle doldur
         statBox->syncWithPlayer(game.getPlayer());
-
-        // 6. Başlangıç odasındaki nesneleri yükle
-        worldObjects.syncWithRoom(game);
     }
 
     void run() {
@@ -184,12 +196,62 @@ public:
 
                 if (!moveMsg.empty()) {
                     typewriter.start(moveMsg, font);
-                    // Yeni odanın çıkışlarına göre butonları güncelle
-                    buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
-                        buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
                     
                     // Yeni odadaki objeleri (eşya vs.) yükle
                     worldObjects.syncWithRoom(game);
+
+                    // Odada dusman varsa savasa gir
+                    bool hasAliveEnemies = false;
+                    Room* r = game.getCurrentRoom();
+                    if (r) {
+                        for (int id : r->monsterID) {
+                            if (id != -1) hasAliveEnemies = true;
+                        }
+                    }
+
+                    if (hasAliveEnemies) {
+                        currentState = GameState::COMBAT;
+                        typewriter.start("Enemies blocked your path! Prepare for battle.", font);
+                    }
+
+                    // Yeni odanın çıkışlarına göre butonları güncelle
+                    buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
+                        buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
+                }
+            }
+
+            // ==========================================
+            // COMBAT SISTEMI (Dusman Tiklama - Gecici Oldurme Testi)
+            // ==========================================
+            if (isLeftClick && currentState == GameState::COMBAT && !inventory.isOpen) {
+                int clickedEnemyIdx = worldObjects.handleLeftClickEnemy(worldPos);
+                if (clickedEnemyIdx != -1) {
+                    Room* r = game.getCurrentRoom();
+                    if (r && clickedEnemyIdx >= 0 && clickedEnemyIdx < r->monsterID.size()) {
+                        // Tiklanan dusmani odadan silme, yerini korumasi icin -1 yap
+                        r->monsterID[clickedEnemyIdx] = -1;
+                        
+                        // Odadaki nesneleri yeniden senkronize et
+                        worldObjects.syncWithRoom(game);
+
+                        bool allDead = true;
+                        int remaining = 0;
+                        for (int id : r->monsterID) {
+                            if (id != -1) {
+                                allDead = false;
+                                remaining++;
+                            }
+                        }
+
+                        if (allDead) {
+                            currentState = GameState::EXPLORING;
+                            typewriter.start("Enemies defeated! " + game.lookAtRoom(), font);
+                            buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
+                                buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
+                        } else {
+                            typewriter.start("Enemy killed! " + std::to_string(remaining) + " remaining.", font);
+                        }
+                    }
                 }
             }
 
