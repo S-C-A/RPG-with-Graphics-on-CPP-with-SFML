@@ -15,15 +15,12 @@ public:
         return new BanditSlasher(*this);
     }
 
-    void makeMove(Player* target) override {
-        
+    string makeMove(Player* target) override {
+        string msg = ">> " + name + ": ";
         if (target->hasStatus(MARK)) {
-            std::cout << ">> Bandit Slasher isaretli hedefini goruyor ve cilginca saldiriyor!" << std::endl;
-            
             target->hurt(atk);
             target->addStatus(StatusEffect(BLEED, 3, 3));
-            
-            std::cout << "KRITIK! " << atk << " hasar aldin ve derin bir yara aldin!" << std::endl;
+            msg += "sees the MARK and strikes wildly! CRITICAL! " + to_string(atk) + " damage and deep bleeding!";
         }
         else {
             srand(time(0));
@@ -31,24 +28,22 @@ public:
 
             switch (choice) {
             case 0:
-                std::cout << ">> Bandit Slasher kilicini savurdu." << std::endl;
                 target->hurt(atk); 
-                std::cout << atk << " hasar aldin." << std::endl;
+                msg += "swings its blade! " + to_string(atk) + " damage dealt.";
                 break;
 
             case 1:
-                std::cout << ">> Bandit Slasher sinsi bir hamle yapti!" << std::endl;
                 target->hurt(2);
                 target->addStatus(StatusEffect(BLEED, 2, 3)); 
-                std::cout << "2 hasar aldin ve hafifce kaniyorsun." << std::endl;
+                msg += "makes a sneaky move! 2 damage and slight bleeding.";
                 break;
 
             case 2:
-                std::cout << ">> Bandit Slasher gozlerini sana dikti..." << std::endl;
                 target->addStatus(StatusEffect(MARK, 0, 3)); 
-                std::cout << "ISARETLENDIN! (Bir sonraki saldiriya dikkat et)" << std::endl;
+                msg += "stares into your soul... YOU ARE MARKED!";
                 break;
             }
         }
+        return msg;
     }
 };

@@ -33,7 +33,7 @@ public:
         return new Monster(*this);
     }
 
-    virtual void makeMove(Player* target);
+    virtual string makeMove(Player* target);
 
     string getName() const { return name; }
     int getAtk() const { return atk; }
@@ -54,8 +54,6 @@ public:
     void takeDamage(int amount){
         hp -= amount;
         if (hp < 0) hp = 0;
-
-        cout << name << " " << amount << " hasar aldi! (Zirh: " << def << ")" << endl;
     }
 
     bool isDead() const {
@@ -66,9 +64,10 @@ public:
 
 #include "player.h"
 
-inline void Monster::makeMove(Player* target) {
+inline string Monster::makeMove(Player* target) {
     if (target != nullptr) {
-        cout << name << " attacks you!" << endl;
         target->hurt(atk);
+        return name + " attacks you for " + to_string(atk) + " damage!";
     }
+    return "";
 }

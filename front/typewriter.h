@@ -40,6 +40,8 @@ struct Typewriter {
 
     Typewriter() : charIndex(0), isFinished(true) {}
 
+    bool isBusy() const { return !isFinished; }
+
     // --- wrapText ---
     // GÖREV: Uzun bir metni, verilen piksel genişliğine sığacak şekilde
     //        kelime kelime alt satıra böler.
