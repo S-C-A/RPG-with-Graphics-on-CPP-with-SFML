@@ -98,7 +98,7 @@ public:
         if (hasAliveEnemies) {
             currentState = GameState::COMBAT;
             combat.setup(game);
-            typewriter.start("Enemies appeared! Prepare for battle.", font);
+            typewriter.start(combat.getCombatIntro(), font);
         }
 
         // 5. Başlangıç butonlarını oda çıkışlarına göre ayarla
@@ -157,8 +157,12 @@ public:
                     bool opened = inventory.toggle(currentState);
                     if (opened)
                         typewriter.start("Inventory Opened.", font);
-                    else
-                        typewriter.start(game.lookAtRoom(), font);
+                    else {
+                        if (currentState == GameState::EXPLORING)
+                            typewriter.start(game.lookAtRoom(), font);
+                        else
+                            typewriter.start(combat.getCombatIntro(), font);
+                    }
                 }
             }
 
@@ -173,8 +177,13 @@ public:
             // --- ENVANTER EŞYA ETKİLEŞİMİ ---
             bool isSelling = (currentState == GameState::SHOP && shopMenu.isSellingMode);
             std::string itemResult = inventory.handleClick(game, isLeftClick, isRightClick, isSelling);
-            if (!itemResult.empty())
+            if (!itemResult.empty()) {
                 typewriter.start(itemResult, font);
+                if (currentState == GameState::COMBAT) {
+                    inventory.isOpen = false; // Cantayi otomatik kapat
+                    combat.endPlayerTurn();
+                }
+            }
 
             // Yön butonlarına tıklama (EXPLORING modunda, envanter kapalıyken)
             if (isMouseJustClicked && currentState == GameState::EXPLORING && !inventory.isOpen) {
@@ -220,54 +229,46 @@ public:
                     if (hasAliveEnemies) {
                         currentState = GameState::COMBAT;
                         combat.setup(game);
-                        typewriter.start("Enemies blocked your path! Prepare for battle.", font);
+                        typewriter.start(combat.getCombatIntro(), font);
                     }
 
                     // Yeni odanın çıkışlarına göre butonları güncelle
                     buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
                         buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
+
+                    isMouseJustClicked = false; 
                 }
             }
 
             // ==========================================
-            // COMBAT SISTEMI (Dusman Tiklama - Gecici Oldurme Testi)
+            // COMBAT SISTEMI (Hedef Secme ve Saldiri)
             // ==========================================
-            if (isLeftClick && currentState == GameState::COMBAT && !inventory.isOpen) {
-                int clickedEnemyIdx = worldObjects.handleLeftClickEnemy(worldPos);
-                if (clickedEnemyIdx != -1) {
-                    Room* r = game.getCurrentRoom();
-                    if (r && clickedEnemyIdx >= 0 && clickedEnemyIdx < r->monsterID.size()) {
-                        // Tiklanan dusmani odadan silme, yerini korumasi icin -1 yap
-                        r->monsterID[clickedEnemyIdx] = -1;
-                        
-                        // Savas mantigindaki nesneyi de oldur (clone oldugu icin)
-                        if (clickedEnemyIdx < (int)combat.activeEnemies.size() && combat.activeEnemies[clickedEnemyIdx]) {
-                            combat.activeEnemies[clickedEnemyIdx]->takeDamage(9999);
-                        }
-
-                        // Odadaki nesneleri yeniden senkronize et
-                        worldObjects.syncWithRoom(game);
-
-                        bool allDead = true;
-                        int remaining = 0;
-                        for (int id : r->monsterID) {
-                            if (id != -1) {
-                                allDead = false;
-                                remaining++;
-                            }
-                        }
-
-                        if (allDead) {
-                            currentState = GameState::EXPLORING;
-                            combat.cleanup();
-                            typewriter.start("Enemies defeated! " + game.lookAtRoom(), font);
-                            buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
-                                buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
-                        } else {
-                            typewriter.start("Enemy killed! " + std::to_string(remaining) + " remaining.", font);
-                        }
+            if (isMouseJustClicked && currentState == GameState::COMBAT && !inventory.isOpen) {
+                // 1. ATTACK butonuna basildi mi?
+                if (buttonMenu->buttons[0].bounds.contains(worldPos) && combat.isPlayerTurn) {
+                    combat.startTargetSelection(typewriter, font);
+                }
+                
+                // 2. Hedef secme modundaysak ve bir dusmana tiklandiysa
+                else if (combat.isSelectingTarget) {
+                    int clickedIdx = worldObjects.handleLeftClickEnemy(worldPos);
+                    if (clickedIdx != -1) {
+                        combat.handleAttack(clickedIdx, game, typewriter, font);
+                        worldObjects.syncWithRoom(game); // Gorsel guncelleme (olum durumunda silinmesi icin)
+                        statBox->syncWithPlayer(game.getPlayer()); // Altin/EXP guncellemesi icin
                     }
                 }
+            }
+
+            // Savas bitti mi kontrolu (Her tık sonrası veya tur sonrası)
+            if (currentState == GameState::COMBAT && combat.allEnemiesDefeated(game.getCurrentRoom()) 
+                && !typewriter.isBusy() && combat.turnTimer.getElapsedTime().asSeconds() > combat.TURN_DELAY) 
+            {
+                currentState = GameState::EXPLORING;
+                combat.cleanup();
+                typewriter.start("Enemies defeated! " + game.lookAtRoom(), font);
+                buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
+                    buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
             }
 
             // ==========================================
