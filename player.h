@@ -78,26 +78,31 @@ public:
         return false;
     }
 
-    void updateStatus() {
+    std::string updateStatus() {
+        std::string report = "";
         for (int i = (int)statusActive.size() - 1; i >= 0; i--) 
         {
             StatusEffect& effect = statusActive[i];
+            bool damageApplied = false;
 
             switch (effect.type) 
             {
             case BLEED:
                 hurt(effect.power);
-                std::cout << "You bleed away " << effect.power << " health..." << std::endl;
+                report += "You bleed away " + std::to_string(effect.power) + " HP...\n";
+                damageApplied = true;
                 break;
             
             case POISON:
                 hurt(effect.power);
-                std::cout << "Poison eats away " << effect.power << " health..." << std::endl;
+                report += "Poison eats " + std::to_string(effect.power) + " HP...\n";
+                damageApplied = true;
                 break;
 
             case BURN:
                 hurt(effect.power);
-                std::cout << "Fire burns away " << effect.power << " health..." << std::endl;
+                report += "Fire burns " + std::to_string(effect.power) + " HP...\n";
+                damageApplied = true;
                 break;
             
             default:
@@ -106,10 +111,20 @@ public:
             effect.duration--;
 
             if (effect.duration <= 0) {
-                std::cout << "An effect has worn off." << std::endl;
+                StatusType type = effect.type;
+                std::string typeName = "An effect";
+                if (type == BLEED) typeName = "Bleeding";
+                else if (type == POISON) typeName = "Poison";
+                else if (type == BURN) typeName = "Burn";
+                else if (type == STR_BUFF) typeName = "Strength buff";
+                else if (type == DEF_BUFF) typeName = "Defense buff";
+                else if (type == MARK) typeName = "Mark";
+                
+                report += typeName + " has worn off.\n";
                 statusActive.erase(statusActive.begin() + i);
             }
         }
+        return report;
     }
 
     const std::vector<Item*>& getInventory() const {

@@ -98,17 +98,6 @@ public:
         endPlayerTurn(); 
     }
 
-    // Oyuncu sırasını atladığında (L tuşu vb.)
-    void skipPlayerTurn(Typewriter& tw, const sf::Font& font) {
-        if (!isPlayerTurn) return;
-        
-        isPlayerTurn = false;
-        isSelectingTarget = false;
-        enemyIndex = 0;
-        turnTimer.restart();
-        tw.start("Your turn skipped. Enemies are moving...", font);
-    }
-
     // Her frame application.h'tan çağrılır
     void updateTurn(Game& game, Typewriter& tw, const sf::Font& font) {
         if (isPlayerTurn) return; // Oyuncu sırasındayken bir şey yapma
@@ -135,9 +124,17 @@ public:
             }
             enemyIndex++;
         } else {
-            // Tüm düşmanlar oynadı, sıra oyuncuya geçer
+            // Tüm düşmanlar oynadı, sira oyuncuya gecerken durum etkilerini tetikle
             isPlayerTurn = true;
-            tw.start("Your turn! (Use buttons or 'L' to skip)", font);
+            
+            std::string statusReport = game.getPlayer().updateStatus();
+            if (statusReport.empty()) {
+                // Eger bir durum etkisi yoksa klasik dusman listesini göster
+                tw.start(getCombatIntro() + "\nYour turn!", font);
+            } else {
+                // Durum etkilerini ve sira bizde uyarısını göster
+                tw.start(statusReport + "\nYour turn!", font);
+            }
         }
     }
 
@@ -162,5 +159,35 @@ public:
         
         if (result.empty()) return "Enemies appear!";
         return result;
+    }
+
+    // Dusman uzerine gelindiginde (hover) gosterilecek metin
+    std::string getEnemyHoverText(int idx) {
+        if (idx < 0 || idx >= (int)activeEnemies.size()) return "";
+        Monster* m = activeEnemies[idx];
+        if (!m || m->isDead()) return "";
+
+        return m->getInfo() + "\n" + 
+               std::to_string(m->getHp()) + " of its " + 
+               std::to_string(m->getMaxHp()) + " HP is remaining";
+    }
+
+    // Envanterdeki gibi anlik (typewriter olmadan) hover cizimi
+    bool drawEnemyHover(sf::RenderWindow& window, const sf::Font& font, sf::Vector2f dialogPos, WorldObjects& wo, sf::Vector2f worldPos) {
+        if (!isPlayerTurn) return false;
+
+        int idx = wo.handleLeftClickEnemy(worldPos);
+        if (idx < 0 || idx >= (int)activeEnemies.size()) return false;
+
+        Monster* m = activeEnemies[idx];
+        if (!m || m->isDead()) return false;
+
+        sf::Text descText(font);
+        descText.setCharacterSize(16);
+        descText.setFillColor(sf::Color(110, 0, 0));
+        descText.setString(m->getInfo() + "\n" + std::to_string(m->getHp()) + " of its " + std::to_string(m->getMaxHp()) + " HP is remaining");
+        descText.setPosition({dialogPos.x + 47.f, dialogPos.y + 30.f});
+        window.draw(descText);
+        return true;
     }
 };

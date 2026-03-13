@@ -123,11 +123,6 @@ public:
                     // --- TEST: STATE DEĞİŞTİRME (İLERİDE SİLİNECEK) ---
                     if (key->code == sf::Keyboard::Key::O) currentState = GameState::SHOP;
                     
-                    // --- SAVAS: SIRA ATLAMA (L TUSU) ---
-                    if (key->code == sf::Keyboard::Key::L && currentState == GameState::COMBAT && combat.isPlayerTurn) {
-                        combat.skipPlayerTurn(typewriter, font);
-                    }
-
                     // State değişince butonları güncelle
                     buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
                         buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
@@ -276,6 +271,7 @@ public:
             // ==========================================
             if (currentState == GameState::COMBAT) {
                 combat.updateTurn(game, typewriter, font);
+                statBox->syncWithPlayer(game.getPlayer()); // Durum etkileri veya dusman hasari sonrasi can guncellensin
             }
 
             // ==========================================
@@ -434,8 +430,14 @@ public:
             statBox->draw(window, font);
             buttonMenu->draw(window, font);
             
-            // Diyalog kutusu: hover varsa eşya açıklaması, yoksa typewriter yazisi
-            if (!inventory.drawHoverDesc(window, font, dialogBox->sprite.getPosition(), game, isSelling)) {
+            // Diyalog kutusu: hover varsa eşya açıklaması veya düsman bilgisi, yoksa typewriter yazisi
+            if (inventory.drawHoverDesc(window, font, dialogBox->sprite.getPosition(), game, isSelling)) {
+                // Envanter hoverı çizildi
+            }
+            else if (currentState == GameState::COMBAT && !inventory.isOpen && combat.drawEnemyHover(window, font, dialogBox->sprite.getPosition(), worldObjects, worldPos)) {
+                // Düşman hoverı çizildi
+            }
+            else {
                 typewriter.draw(window, font, dialogBox->sprite.getPosition());
             }
 

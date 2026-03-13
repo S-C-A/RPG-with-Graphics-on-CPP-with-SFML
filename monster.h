@@ -22,7 +22,7 @@ protected:
 
 public:
     // --- CONSTRUCTORS ---
-    Monster() : ID(0), name("Bilinmiyor"), info(""), max_hp(1), hp(1), atk(0), def(0), exp(0), gold(0) {}
+    Monster() : ID(0), name("Unknown"), info("Unknown"), max_hp(1), hp(1), atk(0), def(0), exp(0), gold(0) {}
     
     Monster(int _id, string _name, string _info, int _max_hp, int _atk, int _def, int _exp, int _gold) 
         : ID(_id), name(_name), info(_info), max_hp(_max_hp), hp(_max_hp), atk(_atk), def(_def), exp(_exp), gold(_gold) {}
@@ -36,6 +36,7 @@ public:
     virtual string makeMove(Player* target);
 
     string getName() const { return name; }
+    string getInfo() const { return info; }
     int getAtk() const { return atk; }
     int getDef() const { return def; }
     int getExp() const { return exp; }
