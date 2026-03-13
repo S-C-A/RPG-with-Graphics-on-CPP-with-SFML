@@ -6,6 +6,7 @@
 #include "gamestate.h"
 #include "inventory.h"
 #include "world_objects.h"
+#include "combat_gui.h"
 #include "../game.h"
 
 class Application {
@@ -51,34 +52,8 @@ private:
     // Dukkan Menusu
     ShopMenu shopMenu;
 
-    // --- COMBAT STATE ---
-    bool isPlayerTurn = true;
-    int enemyIndex = 0;
-    std::vector<Monster*> activeEnemies;
-
-    // Odanin dusmanlarini instantiate et
-    void setupCombat() {
-        // Eski listenin temizligi (Pointer'lar oldugu icin silinmeli)
-        for (auto m : activeEnemies) delete m;
-        activeEnemies.clear();
-
-        Room* r = game.getCurrentRoom();
-        if (r) {
-            for (int id : r->monsterID) {
-                if (id != -1) {
-                    Monster* m = game.getMonsterClone(id);
-                    if (m) activeEnemies.push_back(m);
-                }
-            }
-        }
-        isPlayerTurn = true;
-        enemyIndex = 0;
-    }
-
-    void cleanupCombat() {
-        for (auto m : activeEnemies) delete m;
-        activeEnemies.clear();
-    }
+    // --- COMBAT GUI ---
+    CombatGUI combat;
 
 public:
     Application() {
@@ -122,7 +97,7 @@ public:
         }
         if (hasAliveEnemies) {
             currentState = GameState::COMBAT;
-            setupCombat();
+            combat.setup(game);
             typewriter.start("Enemies appeared! Prepare for battle.", font);
         }
 
@@ -149,10 +124,8 @@ public:
                     if (key->code == sf::Keyboard::Key::O) currentState = GameState::SHOP;
                     
                     // --- SAVAS: SIRA ATLAMA (L TUSU) ---
-                    if (key->code == sf::Keyboard::Key::L && currentState == GameState::COMBAT && isPlayerTurn) {
-                        isPlayerTurn = false;
-                        enemyIndex = 0; // Dusman sirasini baslat
-                        typewriter.start("Your turn skipped. Enemies are moving...", font);
+                    if (key->code == sf::Keyboard::Key::L && currentState == GameState::COMBAT && combat.isPlayerTurn) {
+                        combat.skipPlayerTurn(typewriter, font);
                     }
 
                     // State değişince butonları güncelle
@@ -246,7 +219,7 @@ public:
 
                     if (hasAliveEnemies) {
                         currentState = GameState::COMBAT;
-                        setupCombat();
+                        combat.setup(game);
                         typewriter.start("Enemies blocked your path! Prepare for battle.", font);
                     }
 
@@ -267,6 +240,11 @@ public:
                         // Tiklanan dusmani odadan silme, yerini korumasi icin -1 yap
                         r->monsterID[clickedEnemyIdx] = -1;
                         
+                        // Savas mantigindaki nesneyi de oldur (clone oldugu icin)
+                        if (clickedEnemyIdx < (int)combat.activeEnemies.size() && combat.activeEnemies[clickedEnemyIdx]) {
+                            combat.activeEnemies[clickedEnemyIdx]->takeDamage(9999);
+                        }
+
                         // Odadaki nesneleri yeniden senkronize et
                         worldObjects.syncWithRoom(game);
 
@@ -281,7 +259,7 @@ public:
 
                         if (allDead) {
                             currentState = GameState::EXPLORING;
-                            cleanupCombat();
+                            combat.cleanup();
                             typewriter.start("Enemies defeated! " + game.lookAtRoom(), font);
                             buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
                                 buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
@@ -293,23 +271,10 @@ public:
             }
 
             // ==========================================
-            // ENEMY TURN LOGIC (Sırayla hamle yapma)
+            // COMBAT TURN LOGIC (Sırayla hamle yapma)
             // ==========================================
-            if (currentState == GameState::COMBAT && !isPlayerTurn && !typewriter.isBusy()) {
-                if (enemyIndex < activeEnemies.size()) {
-                    // Bir sonraki dusman hamlesi
-                    Monster* m = activeEnemies[enemyIndex];
-                    if (m && !m->isDead()) {
-                        string moveMsg = m->makeMove(&game.getPlayer());
-                        typewriter.start(moveMsg, font);
-                        statBox->syncWithPlayer(game.getPlayer()); // Hasar aldiysak can guncellensin
-                    }
-                    enemyIndex++;
-                } else {
-                    // Tum dusmanlar oynadi, sira oyuncuya gecer
-                    isPlayerTurn = true;
-                    typewriter.start("Your turn! (Use buttons or 'L' to skip)", font);
-                }
+            if (currentState == GameState::COMBAT) {
+                combat.updateTurn(game, typewriter, font);
             }
 
             // ==========================================
