@@ -42,39 +42,87 @@ struct EnemyTarget {
 };
 
 // ============================================================
-//  ITEM TARGET - Yerdeki Esyanin Gorseli
+//  ITEM TARGET - Yerdeki Esyanin Gorseli (Loot[Final] Texture)
+// ============================================================
+//  FLICKER ONLEME: Hover/scale hesaplari icin STATIK bir hitbox
+//  kullanilir. Gorsel sprite bu hitbox'tan bagimsiz olarak
+//  olceklenir, boylece fare "kaymasi" titreşime yol acmaz.
+//
+//  ZEMIN CIZGISI: POV alaninin altindan 2/5 yukari = SPLIT_Y * 3/5
+//  Sprite'in TABANI bu Y koordinatina sabitlenir.
 // ============================================================
 struct ItemTarget {
-    sf::RectangleShape shape;
+    // --- Static Hitbox (Hover/Click detection icin degismez) ---
+    sf::FloatRect hitbox;
 
-    ItemTarget(float x, float y) {
-        shape.setSize({40.f, 40.f});
-        shape.setPosition({x, y});
-        shape.setFillColor(sf::Color::Yellow);
-        shape.setOutlineThickness(2.f);
-        shape.setOutlineColor(sf::Color(200, 200, 0));
-        shape.setRotation(sf::degrees(45.f));
-        // Merkezini orijin yap ki donme duzgun olsun
-        shape.setOrigin({20.f, 20.f});
+    // --- Visual Sprite (Sadece gorsel, olcek degisir ama hitbox etkilenmez) ---
+    sf::Sprite sprite;
+
+    // Hover durumu
+    bool isHovered = false;
+
+    // =================================================================
+    //  BOUNDING BOX: Loot'un ekranda kaplamasi gereken maksimum alan.
+    //  Texture ne kadar buyuk olursa olsun, bu alana sigirilir.
+    //  450x330 gorseli: scale = 80/450 = ~0.178 -> ekranda 80x59 piksel
+    // =================================================================
+    static constexpr float TARGET_W         = 80.f;  // Hedef genislik (piksel)
+    static constexpr float TARGET_H         = 60.f;  // Hedef yukseklik (piksel)
+    static constexpr float HOVER_SCALE_FACTOR = 0.88f; // Hover'da gorunur kuculme orani
+
+    // Zemin cizgisi: SPLIT_Y (380) * 3/5 = 228
+    static constexpr float FLOOR_LINE_Y = 280.f;
+
+    ItemTarget(float centerX, const sf::Texture& tex) : sprite(tex) {
+        sf::Vector2u texSize = tex.getSize();
+        float texW = static_cast<float>(texSize.x);
+        float texH = static_cast<float>(texSize.y);
+
+        // Texture'i bounding box'a sigdir (en boy orani korunur - "fit" mantigi)
+        // Genislik ve yukseklik icin ayri scale hesapla, kucuk olani kullan
+        float scaleByW = TARGET_W / texW;
+        float scaleByH = TARGET_H / texH;
+        float baseScale = std::min(scaleByW, scaleByH); // En-boy oranini koru
+
+        // Sprite'i orijin = alt-orta noktaya sabitle (zemin cizgisine oturur)
+        sprite.setOrigin({texW / 2.f, texH});
+        sprite.setPosition({centerX, FLOOR_LINE_Y});
+        sprite.setScale({baseScale, baseScale});
+
+        // Statik hitbox: TARGET boyutundan hesaplanir (raw texture boyutundan degil)
+        // Hover/scale degisikliklerinden ETKILENMEZ - flicker bu sayede olmaz
+        float scaledW = texW * baseScale;
+        float scaledH = texH * baseScale;
+        hitbox = sf::FloatRect(
+            {centerX - scaledW / 2.f, FLOOR_LINE_Y - scaledH},
+            {scaledW, scaledH}
+        );
+
+        // baseScale'i ileride update()'de kullanabilmek icin sakla
+        _baseScale = baseScale;
     }
 
+    // Her frame cagirilir. Sadece gorsel sprite'i olcekler, hitbox dokunulmaz.
     void update(sf::Vector2f mousePos) {
-        if (shape.getGlobalBounds().contains(mousePos)) {
-            shape.setScale({1.1f, 1.1f});
-            shape.setFillColor(sf::Color::White);
-        } else {
-            shape.setScale({1.0f, 1.0f});
-            shape.setFillColor(sf::Color::Yellow);
-        }
+        // Hover tespiti STATIK hitbox uzerinden yapilir (flicker yok)
+        isHovered = hitbox.contains(mousePos);
+
+        // Hover'da _baseScale * HOVER_SCALE_FACTOR, normalde sadece _baseScale
+        float displayScale = isHovered ? (_baseScale * HOVER_SCALE_FACTOR) : _baseScale;
+        sprite.setScale({displayScale, displayScale});
     }
 
+    // Tiklama da STATIK hitbox uzerinden kontrol edilir
     bool isClicked(sf::Vector2f mousePos) const {
-        return shape.getGlobalBounds().contains(mousePos);
+        return hitbox.contains(mousePos);
     }
 
     void draw(sf::RenderWindow& window) {
-        window.draw(shape);
+        window.draw(sprite);
     }
+
+private:
+    float _baseScale = 1.f; // Texture -> TARGET boyutuna indirgenmi hesaplanan scale
 };
 
 // ============================================================
@@ -119,8 +167,15 @@ struct NPCTarget {
 //  Oda degistikce syncWithRoom cagirilir.
 struct WorldObjects {
     std::optional<ItemTarget> groundItem;
-    std::optional<NPCTarget> npc;
-    std::vector<EnemyTarget> enemies; // Odadaki dusmanlar
+    std::optional<NPCTarget>  npc;
+    std::vector<EnemyTarget>  enemies;
+
+    // Loot texture referansi (Application'dan bir kez set edilir)
+    const sf::Texture* lootTex = nullptr;
+
+    void setLootTexture(const sf::Texture& tex) {
+        lootTex = &tex;
+    }
 
     // Odaya girildiginde objeleri guncelle
     void syncWithRoom(Game& game) {
@@ -148,10 +203,9 @@ struct WorldObjects {
         bool hasEnemies = !enemies.empty();
 
         // Dusman VARSA baska hicbir seye (Esya, NPC) tiklanmasin diye onlari gosterme
-        if (r && r->itemID != -1 && !hasEnemies) {
+        if (r && r->itemID != -1 && !hasEnemies && lootTex) {
             float centerX = GAME_START_X + (LEFT_WIDTH / 2.f);
-            float centerY = SPLIT_Y / 2.f;
-            groundItem.emplace(centerX, centerY + 30.f);
+            groundItem.emplace(centerX, *lootTex);
         } else {
             groundItem.reset();
         }

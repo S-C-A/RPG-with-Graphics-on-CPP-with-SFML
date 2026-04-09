@@ -23,6 +23,7 @@ private:
     sf::Texture buttonGreyTex;
     sf::Texture mapGreyTex;
     sf::Texture invGreyTex;
+    sf::Texture lootTex; // Yerdeki esya gorseli
 
     // UI Elemanları (Texture'ları referans olarak yukarıdan alır)
     std::optional<GamePanel>   gamePanel;
@@ -74,6 +75,7 @@ public:
         if (!buttonGreyTex.loadFromFile("textures/Button[Grey].png")) return;
         if (!mapGreyTex.loadFromFile("textures/Map[Gray].png"))       return;
         if (!invGreyTex.loadFromFile("textures/Inventory[Gray].png")) return;
+        if (!lootTex.loadFromFile("textures/Loot[Final].png"))        return;
 
         // 2. UI Elemanlarını oluştur, resimleri referans olarak ver
         gamePanel.emplace();
@@ -85,7 +87,8 @@ public:
         if (!font.openFromFile("font.ttf")) return;
         typewriter.start(game.lookAtRoom(), font);
 
-        // 4. Başlangıç odasındaki nesneleri yükle
+        // 4. Loot texture'ini WorldObjects'e ver, ardindan baslangic odasini yukle
+        worldObjects.setLootTexture(lootTex);
         worldObjects.syncWithRoom(game);
 
         // Odada dusman varsa savas modunda basla
