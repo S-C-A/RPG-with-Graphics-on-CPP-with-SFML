@@ -1,6 +1,8 @@
 #pragma once
 #include <SFML/Graphics.hpp>
 #include <optional>
+#include <unordered_map>
+#include <string>
 #include "ui_elements.h"
 #include "typewriter.h"
 #include "gamestate.h"
@@ -23,7 +25,19 @@ private:
     sf::Texture buttonGreyTex;
     sf::Texture mapGreyTex;
     sf::Texture invGreyTex;
-    sf::Texture lootTex; // Yerdeki esya gorseli
+    sf::Texture lootTex;      // Yerdeki ganimet gorseli
+
+    // -------------------------------------------------------
+    //  DUSMAN TEXTURE HARITASI
+    //  Anahtar : Monster::getName() sonucu ("Bandit Slasher")
+    //  Deger   : Idle + Attack texture cifti (EnemyTextureSet)
+    //
+    //  Yeni bir dusman turu eklendiginde:
+    //    1. enemies.h'ta sinifi tanimla
+    //    2. Buraya yeni bir blok ekle ve PNG'leri yukle
+    //    3. syncWithRoom otomatik olarak yeni texture'yi kullanir
+    // -------------------------------------------------------
+    std::unordered_map<std::string, EnemyTextureSet> enemyTexMap;
 
     // UI Elemanları (Texture'ları referans olarak yukarıdan alır)
     std::optional<GamePanel>   gamePanel;
@@ -77,6 +91,25 @@ public:
         if (!invGreyTex.loadFromFile("textures/Inventory[Gray].png")) return;
         if (!lootTex.loadFromFile("textures/Loot[Final].png"))        return;
 
+        // --- DUSMAN TEXTURE'LARI ---
+        // Her dusman blogu ayni yapidadir:
+        //   1. haritada o dusmanin adina ait bir slot ac
+        //   2. idle PNG'yi yukle
+        //   3. attack PNG'yi yukle
+        //      (Test asamasinda ikisi de ayni dosyayi kullanir.)
+        {
+            // Bandit Slasher: idle ve attack icin artik ayri PNG'ler
+            EnemyTextureSet& bandit = enemyTexMap["Bandit Slasher"];
+            if (!bandit.idle.loadFromFile("textures/Enemies/Bandit[Final].png"))   return;
+            if (!bandit.attack.loadFromFile("textures/Enemies/Bandit[Attack].png")) return;
+        }
+        // Yeni dusman turu icin ornek:
+        // {
+        //     EnemyTextureSet& wolf = enemyTexMap["Forest Wolf"];
+        //     if (!wolf.idle.loadFromFile("textures/Enemies/Wolf[Final].png"))   return;
+        //     if (!wolf.attack.loadFromFile("textures/Enemies/Wolf[Attack].png")) return;
+        // }
+
         // 2. UI Elemanlarını oluştur, resimleri referans olarak ver
         gamePanel.emplace();
         dialogBox.emplace(dialogTex);
@@ -87,8 +120,11 @@ public:
         if (!font.openFromFile("font.ttf")) return;
         typewriter.start(game.lookAtRoom(), font);
 
-        // 4. Loot texture'ini WorldObjects'e ver, ardindan baslangic odasini yukle
+        // 4. Loot ve Dusman texture'lerini WorldObjects'e tanitiyoruz,
+        //    ardindan baslangic odasini yukluyoruz.
+        //    SIRA ONEMLI: once set, sonra sync (sync lookup yapar).
         worldObjects.setLootTexture(lootTex);
+        worldObjects.setEnemyTexMap(enemyTexMap);
         worldObjects.syncWithRoom(game);
 
         // Odada dusman varsa savas modunda basla
@@ -251,9 +287,28 @@ public:
                 else if (combat.isSelectingTarget) {
                     int clickedIdx = worldObjects.handleLeftClickEnemy(worldPos);
                     if (clickedIdx != -1) {
+                        // Saldiridan once dusmanin mevcut durumunu kaydet
+                        Room* r = game.getCurrentRoom();
+                        bool wasDead = (r && clickedIdx < (int)r->monsterID.size())
+                                       ? (r->monsterID[clickedIdx] == -1)
+                                       : true;
+
                         combat.handleAttack(clickedIdx, game, typewriter, font);
-                        worldObjects.syncWithRoom(game); // Gorsel guncelleme (olum durumunda silinmesi icin)
-                        statBox->syncWithPlayer(game.getPlayer()); // Altin/EXP guncellemesi icin
+
+                        // Saldiridan sonra: oldu mu?
+                        bool isDead = (r && clickedIdx < (int)r->monsterID.size())
+                                      ? (r->monsterID[clickedIdx] == -1)
+                                      : true;
+
+                        if (!wasDead && isDead) {
+                            // Dusman oldu: gorseli sahnedem kaldir
+                            worldObjects.syncWithRoom(game);
+                        } else if (!isDead) {
+                            // Dusman hayatta: hit-flash animasyonu baslat
+                            worldObjects.startEnemyFlash(clickedIdx);
+                        }
+
+                        statBox->syncWithPlayer(game.getPlayer());
                     }
                 }
             }
@@ -273,8 +328,8 @@ public:
             // COMBAT TURN LOGIC (Sırayla hamle yapma)
             // ==========================================
             if (currentState == GameState::COMBAT) {
-                combat.updateTurn(game, typewriter, font);
-                statBox->syncWithPlayer(game.getPlayer()); // Durum etkileri veya dusman hasari sonrasi can guncellensin
+                combat.updateTurn(game, typewriter, font, worldObjects);
+                statBox->syncWithPlayer(game.getPlayer());
             }
 
             // ==========================================

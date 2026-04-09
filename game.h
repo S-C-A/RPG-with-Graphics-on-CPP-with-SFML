@@ -56,7 +56,7 @@ public:
         if (key) hero.addItem(key);
 
         // TEST ICIN ENVANTERI DOLDURMA (Saglikli yontem)
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 4; i++) {
         Item* newPotion = itemMgr.getItem(1);
         if (newPotion) hero.addItem(newPotion);
     }

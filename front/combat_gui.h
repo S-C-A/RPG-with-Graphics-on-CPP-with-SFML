@@ -5,6 +5,7 @@
 #include "../monster.h"
 #include "../game.h"
 #include "typewriter.h"
+#include "world_objects.h"   // setEnemyAttacking / resetAllAttacking icin
 
 // ============================================================
 //  COMBAT GUI - Savaş Mantığı ve UI Kontrolörü
@@ -98,41 +99,48 @@ public:
         endPlayerTurn(); 
     }
 
-    // Her frame application.h'tan çağrılır
-    void updateTurn(Game& game, Typewriter& tw, const sf::Font& font) {
-        if (isPlayerTurn) return; // Oyuncu sırasındayken bir şey yapma
+    // Her frame application.h'tan cagrilir.
+    // wo (WorldObjects): dusman gorsel animasyon durumunu guncellemek icin
+    void updateTurn(Game& game, Typewriter& tw, const sf::Font& font, WorldObjects& wo) {
+        if (isPlayerTurn) return; // Oyuncu sirasinda hicbir sey yapma
         
-        // Eğer daktilo hala yazıyorsa bekle
+        // Daktilo hala yaziyorsa bekle
         if (tw.isBusy()) {
-            turnTimer.restart(); // Yazı bittikten sonra süre başlasın
+            turnTimer.restart(); // Yazi bittikten sonra sure baslasin
             return;
         }
 
-        // Yazı bitti, peki üzerinden okuma süresi (delay) geçti mi?
+        // Yazi bitti, okuma gecikmesi (delay) gecti mi?
         if (turnTimer.getElapsedTime().asSeconds() < TURN_DELAY) {
             return;
         }
 
-        // Bekleme süresi doldu, sıradaki düşman hareket etsin
+        // Gecikme doldu: siradaki dusman hamle yapsin
         if (enemyIndex < activeEnemies.size()) {
             Monster* m = activeEnemies[enemyIndex];
             
             if (m && !m->isDead()) {
+                // --- ATTACK ANIMASYONU BASLAT ---
+                // Bu dusmanin r->monsterID[] indeksi = enemyIndex
+                // (setup() sirasinda ayni sirayla klonlandigindan eslesiyor)
+                wo.setEnemyAttacking(enemyIndex, true);
+
                 std::string moveMsg = m->makeMove(&game.getPlayer());
                 tw.start(moveMsg, font);
-                turnTimer.restart(); // Yeni mesajın bitmesi için reset
+                turnTimer.restart(); // Yeni mesajin bitmesi icin reset
             }
             enemyIndex++;
         } else {
-            // Tüm düşmanlar oynadı, sira oyuncuya gecerken durum etkilerini tetikle
+            // Tum dusmanlar oynadı: animasyonlari sifirla, oyuncuya gec
+            // --- ATTACK ANIMASYONU BITIR ---
+            wo.resetAllAttacking();
+
             isPlayerTurn = true;
             
             std::string statusReport = game.getPlayer().updateStatus();
             if (statusReport.empty()) {
-                // Eger bir durum etkisi yoksa klasik dusman listesini göster
                 tw.start(getCombatIntro() + "\nYour turn!", font);
             } else {
-                // Durum etkilerini ve sira bizde uyarısını göster
                 tw.start(statusReport + "\nYour turn!", font);
             }
         }
