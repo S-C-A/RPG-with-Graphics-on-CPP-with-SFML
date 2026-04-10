@@ -244,37 +244,77 @@ private:
 };
 
 // ============================================================
+//  NPC TEXTURE SETI
+// ============================================================
+//  NPC'ye ait gorselleri saklar. (Loot gibi tek, ama gelecekte
+//  idle/talk gibi ikili sistemlere acik olsun diye set yapisinda).
+// ============================================================
+struct NPCTextureSet {
+    sf::Texture idle;    // Bekleme/konusma gorseli
+};
+
+// ============================================================
 //  NPC TARGET - Odadaki NPC'nin Gorseli
 // ============================================================
+//  EnemyTarget ile aynidir:
+//    1. Resim alti (Bottom-Center) zemin cizgisine (FLOOR_LINE_Y) oturur.
+//    2. Hover efekti sprite uzerinde uygulanir, hitbox sabittir. (Flicker onleme)
+// ============================================================
 struct NPCTarget {
-    sf::RectangleShape shape;
+    // Statik Hitbox - tiklama/hover icin, hic degismez
+    sf::FloatRect hitbox;
 
-    NPCTarget(float x, float y) {
-        shape.setSize({50.f, 50.f});
-        shape.setPosition({x, y});
-        shape.setFillColor(sf::Color::Cyan);
-        shape.setOutlineThickness(2.f);
-        shape.setOutlineColor(sf::Color::Blue);
-        shape.setRotation(sf::degrees(45.f));
-        shape.setOrigin({25.f, 25.f});
+    // Gorsel Sprite
+    sf::Sprite spriteIdle;
+
+    // Fare bu NPC'nin uzerinde mi?
+    bool isHovered = false;
+
+    // Gorseller 1120x760 tuvalinde tasarlandigi icin 0.5 ile oyun alanina indiriliyor
+    static constexpr float PIXEL_SCALE        = 0.5f;
+    static constexpr float HOVER_SCALE_FACTOR = 0.97f; // Hover'da %3 kuculme
+    static constexpr float FLOOR_LINE_Y       = 280.f; // Ayaklarin bastigi Y cizgisi
+
+    // -----------------------------------------------------------------
+    //  Constructor
+    //  centerX : NPC'nin yatay merkez koordinati
+    //  texSet  : idle texture iceren set
+    // -----------------------------------------------------------------
+    NPCTarget(float centerX, const NPCTextureSet& texSet)
+        : spriteIdle(texSet.idle)
+    {
+        float idleW = static_cast<float>(texSet.idle.getSize().x);
+        float idleH = static_cast<float>(texSet.idle.getSize().y);
+
+        // Idle Sprite: origin = alt-orta, pozisyon = zemin cizgisi
+        spriteIdle.setOrigin({idleW / 2.f, idleH});
+        spriteIdle.setPosition({centerX, FLOOR_LINE_Y});
+        spriteIdle.setScale({PIXEL_SCALE, PIXEL_SCALE});
+
+        // Statik Hitbox: idle texture'un olcekli boyutlarindan BIR KEZ hesaplanir
+        float scaledW = idleW * PIXEL_SCALE;
+        float scaledH = idleH * PIXEL_SCALE;
+        hitbox = sf::FloatRect(
+            {centerX - scaledW / 2.f, FLOOR_LINE_Y - scaledH},
+            {scaledW, scaledH}
+        );
     }
 
+    // Her frame cagirilir. Sadece gorsel olceklenir, hitbox dokunulmaz.
     void update(sf::Vector2f mousePos) {
-        if (shape.getGlobalBounds().contains(mousePos)) {
-            shape.setScale({1.1f, 1.1f});
-            shape.setFillColor(sf::Color::White);
-        } else {
-            shape.setScale({1.0f, 1.0f});
-            shape.setFillColor(sf::Color::Cyan);
-        }
+        isHovered = hitbox.contains(mousePos);
+        float displayScale = isHovered ? (PIXEL_SCALE * HOVER_SCALE_FACTOR) : PIXEL_SCALE;
+        spriteIdle.setScale({displayScale, displayScale});
     }
 
+    // Tiklama STATIK hitbox uzerinden kontrol edilir
     bool isClicked(sf::Vector2f mousePos) const {
-        return shape.getGlobalBounds().contains(mousePos);
+        return hitbox.contains(mousePos);
     }
 
+    // Gorseli cizer
     void draw(sf::RenderWindow& window) {
-        window.draw(shape);
+        window.draw(spriteIdle);
     }
 };
 
@@ -297,6 +337,10 @@ struct WorldObjects {
     // Application'dan bir kez set edilir, syncWithRoom okur.
     std::unordered_map<std::string, EnemyTextureSet>* enemyTexMapPtr = nullptr;
 
+    // NPC texture haritasi:
+    // Application'dan bir kez set edilir, syncWithRoom okur.
+    std::unordered_map<std::string, NPCTextureSet>* npcTexMapPtr = nullptr;
+
     void setLootTexture(const sf::Texture& tex) {
         lootTex = &tex;
     }
@@ -305,6 +349,11 @@ struct WorldObjects {
     // syncWithRoom'dan ONCE cagrilmali (sync lookup yapar).
     void setEnemyTexMap(std::unordered_map<std::string, EnemyTextureSet>& map) {
         enemyTexMapPtr = &map;
+    }
+
+    // Application constructor'indan cagirilir.
+    void setNPCTexMap(std::unordered_map<std::string, NPCTextureSet>& map) {
+        npcTexMapPtr = &map;
     }
 
     // Odaya girildiginde veya dusman oldugunde cagirilir.
@@ -373,8 +422,33 @@ struct WorldObjects {
 
         if (r && r->npcID != -1 && !hasEnemies) {
             float centerX = GAME_START_X + (LEFT_WIDTH / 2.f);
-            float centerY = SPLIT_Y / 2.f;
-            npc.emplace(centerX + 80.f, centerY + 30.f);
+            
+            // NPC adini backend'den al (texture lookup icin)
+            std::string npcName = "";
+            if (npcTexMapPtr) {
+                NPC* tempNPC = game.getRoomNPC();
+                if (tempNPC) {
+                    npcName = tempNPC->getName();
+                }
+            }
+
+            // Haritada bu isimde texture var mi?
+            const NPCTextureSet* texSet = nullptr;
+            if (npcTexMapPtr && !npcName.empty()) {
+                auto it = npcTexMapPtr->find(npcName);
+                if (it != npcTexMapPtr->end()) {
+                    texSet = &it->second;
+                }
+            }
+
+            // Texture bulunduysa gorsel olustur
+            if (texSet) {
+                // NPC oyun alaninda tam ortalaniyor
+                // Eger ayni odada hem Loot hem NPC olursa ikisi de ayni hizada belirecektir.
+                npc.emplace(centerX, *texSet);
+            } else {
+                npc.reset();
+            }
         } else {
             npc.reset();
         }

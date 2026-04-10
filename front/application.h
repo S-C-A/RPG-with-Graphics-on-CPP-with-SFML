@@ -39,6 +39,13 @@ private:
     // -------------------------------------------------------
     std::unordered_map<std::string, EnemyTextureSet> enemyTexMap;
 
+    // -------------------------------------------------------
+    //  NPC TEXTURE HARITASI
+    //  Anahtar : NPC adi ("Old Sage", "Mysterious Merchant")
+    //  Deger   : NPC texture seti (idle gorseli)
+    // -------------------------------------------------------
+    std::unordered_map<std::string, NPCTextureSet> npcTexMap;
+
     // UI Elemanları (Texture'ları referans olarak yukarıdan alır)
     std::optional<GamePanel>   gamePanel;
     std::optional<DialogBox>   dialogBox;
@@ -110,6 +117,17 @@ public:
         //     if (!wolf.attack.loadFromFile("textures/Enemies/Wolf[Attack].png")) return;
         // }
 
+        // --- NPC TEXTURE'LARI ---
+        {
+            // Old Sage (yasli adam) icin oracle png'sini kullaniyoruz
+            NPCTextureSet& sage = npcTexMap["Old Sage"];
+            if (!sage.idle.loadFromFile("textures/NPC/Oracle[Final].png")) return;
+            
+            // Mysterious Merchant icin vagon png'si
+            NPCTextureSet& merchant = npcTexMap["Mysterious Merchant"];
+            if (!merchant.idle.loadFromFile("textures/NPC/Wagon[Final].png")) return;
+        }
+
         // 2. UI Elemanlarını oluştur, resimleri referans olarak ver
         gamePanel.emplace();
         dialogBox.emplace(dialogTex);
@@ -120,11 +138,12 @@ public:
         if (!font.openFromFile("font.ttf")) return;
         typewriter.start(game.lookAtRoom(), font);
 
-        // 4. Loot ve Dusman texture'lerini WorldObjects'e tanitiyoruz,
+        // 4. Loot, Dusman ve NPC texture'lerini WorldObjects'e tanitiyoruz,
         //    ardindan baslangic odasini yukluyoruz.
         //    SIRA ONEMLI: once set, sonra sync (sync lookup yapar).
         worldObjects.setLootTexture(lootTex);
         worldObjects.setEnemyTexMap(enemyTexMap);
+        worldObjects.setNPCTexMap(npcTexMap);
         worldObjects.syncWithRoom(game);
 
         // Odada dusman varsa savas modunda basla

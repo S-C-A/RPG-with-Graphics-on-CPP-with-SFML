@@ -13,4 +13,4 @@
 
 // 4. ODA: Magaza. Yer: Iksir (1). NPC: Merchant (51). Canavar: Yok.
 // TEST: Once Tuccar konusmali (Auto-talk), sonra 'e' ile yerden iksir alinabilmeli.
-4,Merchant_Shop,-1,3,-1,-1,1,51
+4,Merchant_Shop,-1,3,-1,-1,-1,51
