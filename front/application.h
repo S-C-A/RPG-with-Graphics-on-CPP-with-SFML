@@ -9,6 +9,7 @@
 #include "inventory.h"
 #include "world_objects.h"
 #include "combat_gui.h"
+#include "background.h"
 #include "../game.h"
 
 class Application {
@@ -45,6 +46,11 @@ private:
     //  Deger   : NPC texture seti (idle gorseli)
     // -------------------------------------------------------
     std::unordered_map<std::string, NPCTextureSet> npcTexMap;
+
+    // --- ARKA PLAN YONETICISI ---
+    sf::Texture treeLeftTex;
+    sf::Texture treeRightTex;
+    BackgroundManager bgManager;
 
     // UI Elemanları (Texture'ları referans olarak yukarıdan alır)
     std::optional<GamePanel>   gamePanel;
@@ -128,6 +134,11 @@ public:
             if (!merchant.idle.loadFromFile("textures/NPC/Wagon[Final].png")) return;
         }
 
+        // --- BACKGROUND TEXTURE'LARI ---
+        if (!treeLeftTex.loadFromFile("textures/Trees/1[1][Final].png")) return;
+        if (!treeRightTex.loadFromFile("textures/Trees/1[2][Final].png")) return;
+        bgManager.setTreeTextures(treeLeftTex, treeRightTex);
+
         // 2. UI Elemanlarını oluştur, resimleri referans olarak ver
         gamePanel.emplace();
         dialogBox.emplace(dialogTex);
@@ -145,6 +156,9 @@ public:
         worldObjects.setEnemyTexMap(enemyTexMap);
         worldObjects.setNPCTexMap(npcTexMap);
         worldObjects.syncWithRoom(game);
+        if (Room* r = game.getCurrentRoom()) {
+            bgManager.syncWithRoom(r->id);
+        }
 
         // Odada dusman varsa savas modunda basla
         bool hasAliveEnemies = false;
@@ -241,6 +255,7 @@ public:
             // Yön butonlarına tıklama (EXPLORING modunda, envanter kapalıyken)
             if (isMouseJustClicked && currentState == GameState::EXPLORING && !inventory.isOpen) {
                 Room* room = game.getCurrentRoom();
+                int oldRoomId = room ? room->id : -1; // Odanin eski IDsini kaydet
                 NPC* roomNPC = game.getRoomNPC();
                 std::string moveMsg;
 
@@ -267,27 +282,29 @@ public:
                 if (!moveMsg.empty()) {
                     typewriter.start(moveMsg, font);
                     
-                    // Yeni odadaki objeleri (eşya vs.) yükle
-                    worldObjects.syncWithRoom(game);
+                    Room* newRoom = game.getCurrentRoom();
+                    // Sadece oyuncu gercekten yeni bir odaya gectiyse yenileme yap!
+                    if (newRoom && newRoom->id != oldRoomId) {
+                        // Yeni odadaki objeleri (eşya vs.) ve arkaplani yükle
+                        worldObjects.syncWithRoom(game);
+                        bgManager.syncWithRoom(newRoom->id);
 
-                    // Odada dusman varsa savasa gir
-                    bool hasAliveEnemies = false;
-                    Room* r = game.getCurrentRoom();
-                    if (r) {
-                        for (int id : r->monsterID) {
+                        // Odada dusman varsa savasa gir
+                        bool hasAliveEnemies = false;
+                        for (int id : newRoom->monsterID) {
                             if (id != -1) hasAliveEnemies = true;
                         }
-                    }
 
-                    if (hasAliveEnemies) {
-                        currentState = GameState::COMBAT;
-                        combat.setup(game);
-                        typewriter.start(combat.getCombatIntro(), font);
-                    }
+                        if (hasAliveEnemies) {
+                            currentState = GameState::COMBAT;
+                            combat.setup(game);
+                            typewriter.start(combat.getCombatIntro(), font);
+                        }
 
-                    // Yeni odanın çıkışlarına göre butonları güncelle
-                    buttonMenu->applyStateWithRoom(currentState, game.getCurrentRoom(), game.getRoomNPC(),
-                        buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
+                        // Yeni odanın çıkışlarına göre butonları güncelle
+                        buttonMenu->applyStateWithRoom(currentState, newRoom, game.getRoomNPC(),
+                            buttonTex, buttonGreyTex, mapTex, mapGreyTex, invTex, invGreyTex);
+                    }
 
                     isMouseJustClicked = false; 
                 }
@@ -496,12 +513,17 @@ public:
             // Render
             window.clear(sf::Color::Black);
             window.setView(gameView);
+            
+            // 1. En alta siyah oyun panosu cizilir
             gamePanel->draw(window);
 
-            // Odadaki nesneleri GamePanel uzerine ciz (envanterin "altinda" kalsin)
+            // 2. Arka plan atmosfer nesneleri (Agaclar) cizilir (NPC ve Eşyanın altinda kalir)
+            bgManager.draw(window);
+
+            // 3. Odadaki dunya nesnelerini (NPC, Esya, Dusman) ciz
             worldObjects.draw(window);
 
-            // Envanter açıksa GamePanel ve nesnelerin üzerine çizilir
+            // 4. Envanter ve UI panelleri en uste cizilir
             inventory.draw(window, font);
             dialogBox->draw(window);
             statBox->draw(window, font);
