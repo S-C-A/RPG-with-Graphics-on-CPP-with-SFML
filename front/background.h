@@ -35,9 +35,11 @@ class BackgroundManager {
 private:
     std::vector<AtmosphericElement> elements;
     
-    // Su an sadece sol ve sag agac
-    const sf::Texture* leftTreeTex = nullptr;
-    const sf::Texture* rightTreeTex = nullptr;
+    struct TreePair {
+        const sf::Texture* left;
+        const sf::Texture* right;
+    };
+    std::vector<TreePair> treeVarieties;
 
     // Tam rastgelelik motoru
     std::mt19937 rng;
@@ -48,9 +50,9 @@ public:
         rng.seed(rd());
     }
 
-    void setTreeTextures(const sf::Texture& left, const sf::Texture& right) {
-        leftTreeTex  = &left;
-        rightTreeTex = &right;
+    // Farkli agac turlerini (varyasyonlari) listeye ekler
+    void addTreeVariety(const sf::Texture& left, const sf::Texture& right) {
+        treeVarieties.push_back({&left, &right});
     }
 
     void syncWithRoom(int roomId) {
@@ -65,7 +67,10 @@ public:
 
     // 5 yatay serit uzerine (perspektif yaratacak sekilde) rastgele agac dizer
     void randomize() {
-        if (!leftTreeTex || !rightTreeTex) return;
+        if (treeVarieties.empty()) return;
+        
+        // Agac turunu secmek icin rastgelelik
+        std::uniform_int_distribution<int> typeDist(0, treeVarieties.size() - 1);
 
         // Oyun alani yatay merkezi
         float centerX = GAME_START_X + (LEFT_WIDTH / 2.f);
@@ -99,15 +104,33 @@ public:
             if (leftMinX > leftMaxX) leftMinX = leftMaxX;
             if (rightMaxX < rightMinX) rightMaxX = rightMinX;
 
-            // Sola rastgele bir X sec 1[1] agacini yarat
+            // Sola rastgele bir X sec ve rastgele bir agac turu yarat
+            int leftTypeIdx = typeDist(rng);
             std::uniform_real_distribution<float> leftDist(leftMinX, leftMaxX);
             float xLeft = leftDist(rng);
-            elements.emplace_back(xLeft, yPos, *leftTreeTex);
+            elements.emplace_back(xLeft, yPos, *(treeVarieties[leftTypeIdx].left));
 
-            // Saga rastgele bir X sec 1[2] agacini yarat
+            // Eger agac orta yola (icerilere) cok yaklastiysa ve alan genisse, 
+            // ekranin uzaktaki kenari cok bos kalmasin diye en sola tampon bir agac daha ekle
+            if (leftMaxX - xLeft < 50.f && (leftMaxX - leftMinX) > 80.f) {
+                int extraLeftTypeIdx = typeDist(rng);
+                // Biraz rastgelelik katarak en sola yerlestir
+                std::uniform_real_distribution<float> edgeLeftDist(leftMinX, leftMinX + 15.f);
+                elements.emplace_back(edgeLeftDist(rng), yPos, *(treeVarieties[extraLeftTypeIdx].left));
+            }
+
+            // Saga rastgele bir X sec ve rastgele bir agac turu yarat
+            int rightTypeIdx = typeDist(rng);
             std::uniform_real_distribution<float> rightDist(rightMinX, rightMaxX);
             float xRight = rightDist(rng);
-            elements.emplace_back(xRight, yPos, *rightTreeTex);
+            elements.emplace_back(xRight, yPos, *(treeVarieties[rightTypeIdx].right));
+
+            // Eger agac orta yola cok yaklastiysa, en saga tampon bir agac daha ekle
+            if (xRight - rightMinX < 50.f && (rightMaxX - rightMinX) > 80.f) {
+                int extraRightTypeIdx = typeDist(rng);
+                std::uniform_real_distribution<float> edgeRightDist(rightMaxX - 15.f, rightMaxX);
+                elements.emplace_back(edgeRightDist(rng), yPos, *(treeVarieties[extraRightTypeIdx].right));
+            }
         }
     }
 

@@ -48,8 +48,14 @@ private:
     std::unordered_map<std::string, NPCTextureSet> npcTexMap;
 
     // --- ARKA PLAN YONETICISI ---
-    sf::Texture treeLeftTex;
-    sf::Texture treeRightTex;
+    sf::Texture tree1LeftTex;
+    sf::Texture tree1RightTex;
+    sf::Texture tree2LeftTex;
+    sf::Texture tree2RightTex;
+    sf::Texture tree3LeftTex;
+    sf::Texture tree3RightTex;
+    sf::Texture tree4LeftTex;
+    sf::Texture tree4RightTex;
     BackgroundManager bgManager;
 
     // UI Elemanları (Texture'ları referans olarak yukarıdan alır)
@@ -135,9 +141,22 @@ public:
         }
 
         // --- BACKGROUND TEXTURE'LARI ---
-        if (!treeLeftTex.loadFromFile("textures/Trees/1[1][Final].png")) return;
-        if (!treeRightTex.loadFromFile("textures/Trees/1[2][Final].png")) return;
-        bgManager.setTreeTextures(treeLeftTex, treeRightTex);
+        if (!tree1LeftTex.loadFromFile("textures/Trees/1[1][Final].png")) return;
+        if (!tree1RightTex.loadFromFile("textures/Trees/1[2][Final].png")) return;
+        bgManager.addTreeVariety(tree1LeftTex, tree1RightTex);
+
+        if (!tree2LeftTex.loadFromFile("textures/Trees/2[1][Final].png")) return;
+        if (!tree2RightTex.loadFromFile("textures/Trees/2[2][Final].png")) return;
+        bgManager.addTreeVariety(tree2LeftTex, tree2RightTex);
+
+        // 3. Ağaç Türleri Yüklendi ve Eklendi
+        if (!tree3LeftTex.loadFromFile("textures/Trees/3[1][Final].png")) return;
+        if (!tree3RightTex.loadFromFile("textures/Trees/3[2][Final].png")) return;
+        bgManager.addTreeVariety(tree3LeftTex, tree3RightTex);
+
+        if (!tree4LeftTex.loadFromFile("textures/Trees/4[1][Final].png")) return;
+        if (!tree4RightTex.loadFromFile("textures/Trees/4[2][Final].png")) return;
+        bgManager.addTreeVariety(tree4LeftTex, tree4RightTex);
 
         // 2. UI Elemanlarını oluştur, resimleri referans olarak ver
         gamePanel.emplace();
