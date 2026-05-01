@@ -56,6 +56,14 @@ private:
     sf::Texture tree3RightTex;
     sf::Texture tree4LeftTex;
     sf::Texture tree4RightTex;
+    sf::Texture tree5LeftTex;
+    sf::Texture tree5RightTex;
+    sf::Texture tree6LeftTex;
+    sf::Texture tree6RightTex;
+    sf::Texture tree7LeftTex;
+    sf::Texture tree7RightTex;
+    sf::Texture tree8LeftTex;
+    sf::Texture tree8RightTex;
     BackgroundManager bgManager;
 
     // UI Elemanları (Texture'ları referans olarak yukarıdan alır)
@@ -157,6 +165,22 @@ public:
         if (!tree4LeftTex.loadFromFile("textures/Trees/4[1][Final].png")) return;
         if (!tree4RightTex.loadFromFile("textures/Trees/4[2][Final].png")) return;
         bgManager.addTreeVariety(tree4LeftTex, tree4RightTex);
+      
+        if (!tree5LeftTex.loadFromFile("textures/Trees/5[1][Final].png")) return;
+        if (!tree5RightTex.loadFromFile("textures/Trees/5[2][Final].png")) return;
+        bgManager.addTreeVariety(tree5LeftTex, tree5RightTex);
+
+        if (!tree6LeftTex.loadFromFile("textures/Trees/6[1][Final].png")) return;
+        if (!tree6RightTex.loadFromFile("textures/Trees/6[2][Final].png")) return;
+        bgManager.addTreeVariety(tree6LeftTex, tree6RightTex);
+
+        if (!tree7LeftTex.loadFromFile("textures/Trees/7[1][Final].png")) return;
+        if (!tree7RightTex.loadFromFile("textures/Trees/7[2][Final].png")) return;
+        bgManager.addTreeVariety(tree7LeftTex, tree7RightTex);
+
+        if (!tree8LeftTex.loadFromFile("textures/Trees/8[1][Final].png")) return;
+        if (!tree8RightTex.loadFromFile("textures/Trees/8[2][Final].png")) return;
+        bgManager.addTreeVariety(tree8LeftTex, tree8RightTex);
 
         // 2. UI Elemanlarını oluştur, resimleri referans olarak ver
         gamePanel.emplace();
